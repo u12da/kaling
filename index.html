@@ -1,0 +1,2093 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>카링 실 게이지</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="메이플스토리 카링 1·2·3페이즈에서 실과 흉수에 맞을 때 궁기·도올·혼돈 게이지가 어떻게 바뀌는지 보여주는 도우미">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600;700&family=Song+Myung&display=swap">
+<style>
+/* Layout: the painted battle stage on the left, the in-game style triangle gauge and the hit list on the right; one column on phones with a slim sticky bar once the triangle scrolls away. */
+:root {
+  --ink: #0e1117;
+  --ink-2: #161a23;
+  --ink-3: #1f2430;
+  --ink-glass: rgba(14, 17, 23, 0.93);
+  --line: #2c3342;
+  --paper: #ece5d4;
+  --paper-dim: #a4a3ab;
+  --gold: #d8b35b;
+  --on-gold: #1b1508;
+  --g-gungi: #f3cf43;
+  --g-doul: #3cc4e4;
+  --g-hondon: #b07dff;
+  --t-red: #ff5268;
+  --t-green: #35d683;
+  --t-yellow: #ffae1c;
+  --danger: #ff5a4c;
+  --warn: #ff9a3c;
+  --f-display: "Song Myung", "Nanum Myeongjo", "Noto Serif KR", "Batang", serif;
+  --f-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --floor: 74%;
+  --thread-top: 14.5%;
+  color-scheme: dark;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+html { background: var(--ink); }
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--f-body);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-text-size-adjust: 100%;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: env(safe-area-inset-top, 0px);
+  z-index: 10;
+  background: var(--ink-glass);
+}
+.wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+button, input { font: inherit; color: inherit; }
+button, label.btn { touch-action: manipulation; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---------- header ---------- */
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 32px;
+  padding-block: 22px 14px;
+}
+.brand { min-width: 0; max-width: 620px; }
+.eyebrow {
+  margin: 0 0 2px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: var(--gold);
+}
+h1 {
+  font-family: var(--f-display);
+  font-weight: 400;
+  font-size: clamp(30px, 4.4vw, 42px);
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+}
+.lede { margin: 8px 0 0; color: var(--paper-dim); }
+.ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.seg button {
+  background: transparent;
+  border: 0;
+  padding: 7px 12px;
+  font-size: 14px;
+  color: var(--paper-dim);
+}
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--paper); color: var(--ink); font-weight: 600; }
+.amt { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--paper-dim); }
+.amt input {
+  width: 64px;
+  padding: 6px 8px;
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.linkbtn {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--gold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-size: 13px;
+}
+
+/* ---------- scene nav ---------- */
+.scenes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding-block: 4px 14px;
+}
+.sgroup { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.slabel {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--paper-dim);
+  margin-right: 2px;
+}
+.sbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 14px;
+}
+.sbtn .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c, var(--paper-dim)); }
+.sbtn[aria-current="true"] { border-color: var(--paper); background: var(--ink-3); font-weight: 600; }
+
+/* ---------- triangle gauge (in-game layout: a rounded △, 혼돈 wraps the top corner, 궁기 bottom right, 도올 bottom left, filling clockwise) ---------- */
+.gpanel {
+  grid-area: gauge;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 14px;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-width: 0;
+}
+.tri { display: block; width: 100%; max-width: 420px; height: auto; margin-inline: auto; overflow: visible; }
+.tri path { fill: none; stroke-linejoin: round; }
+.tri .frame { stroke: var(--line); stroke-width: 28; }
+.tri .track { stroke: var(--ink); stroke-width: 18; }
+.tri .fill { stroke: var(--c); stroke-width: 18; transition: stroke-dasharray 0.45s cubic-bezier(.2,.8,.2,1); }
+.tri .zone { stroke: url(#tri-hatch); stroke-width: 18; }
+.tri .tick { stroke: var(--paper); stroke-width: 2.5; opacity: 0.75; }
+.tri .head { fill: var(--paper-dim); }
+.tri .knot { fill: var(--ink-2); stroke: var(--line); stroke-width: 2; }
+.tri .disc { fill: var(--ink); stroke: var(--line); stroke-width: 2; }
+.tri .nm { font: 700 15px var(--f-body); fill: var(--c); }
+.tri .nm .ss { font-weight: 400; font-size: 12px; fill: var(--paper-dim); }
+.tri .val { font: 700 27px var(--f-body); fill: var(--paper); font-variant-numeric: tabular-nums; }
+.tri .dl { font-size: 14px; fill-opacity: 0; }
+.tri .dl.up { fill: var(--c); }
+.tri .dl.down { fill: var(--paper-dim); }
+.tri .dl.show { animation: dlPop 1.6s ease-out; }
+@keyframes dlPop { 0% { fill-opacity: 0; } 12% { fill-opacity: 1; } 75% { fill-opacity: 1; } 100% { fill-opacity: 0; } }
+.tri .left { font: 400 12px var(--f-body); fill: var(--paper-dim); font-variant-numeric: tabular-nums; }
+.tri .center { font: 400 12px var(--f-body); fill: var(--paper-dim); text-anchor: middle; }
+.tri .center-big { font: 400 24px var(--f-body); fill: var(--paper-dim); opacity: 0.6; text-anchor: middle; }
+.tri .edge[data-state="edge"] .val { fill: var(--warn); }
+.tri .edge[data-state="burst"] .val, .tri .edge[data-state="burst"] .left { fill: var(--danger); }
+.tri .edge[data-state="burst"] .track { stroke: var(--danger); stroke-dasharray: 6 5; opacity: 0.8; }
+.tri .edge[data-state="burst"] .fill, .tri .edge[data-state="burst"] .zone { opacity: 0; }
+.tri .edge.hl .fill { animation: edgeGlow 0.7s ease-out; }
+@keyframes edgeGlow { 0% { stroke-width: 18; } 30% { stroke-width: 25; } 100% { stroke-width: 18; } }
+.gside { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.mind { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
+.mind span { font-size: 11px; color: var(--paper-dim); letter-spacing: 0.06em; }
+.mind b { font-size: 22px; font-variant-numeric: tabular-nums; }
+.mind.hurt b { color: var(--danger); }
+.btns { display: flex; flex-direction: column; gap: 6px; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 11px;
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.gside .btn { background: var(--ink); }
+.btn:hover { border-color: var(--paper-dim); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.edit {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  font-size: 13px;
+}
+.edit label { display: inline-flex; align-items: center; gap: 6px; }
+.edit input {
+  width: 74px;
+  padding: 6px 8px;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.edit .hint { color: var(--paper-dim); }
+.mini {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 8;
+  padding-top: env(safe-area-inset-top, 0px);
+  background: var(--ink-glass);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--line);
+}
+.mini-in { display: flex; align-items: center; gap: 6px 16px; flex-wrap: wrap; padding-block: 8px; max-width: 1240px; margin: 0 auto; }
+.mchip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.mchip i { width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+.mchip b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.mchip[data-state="edge"] b { color: var(--warn); }
+.mchip[data-state="burst"] b { color: var(--danger); }
+.mmind { margin-left: auto; font-size: 12px; color: var(--paper-dim); }
+.amt-s { display: none; }
+.sbtn .s { display: none; }
+.glist { display: none; }
+.grow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0 6px;
+  padding: 5px 0;
+}
+.grow + .grow { border-top: 1px solid var(--line); }
+.gname { min-width: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--c); white-space: nowrap; }
+.gname i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.gname small { font-size: 11px; font-weight: 400; color: var(--paper-dim); }
+.gv { font-size: 22px; line-height: 1.1; text-align: right; font-variant-numeric: tabular-nums; }
+.gd { justify-self: end; font-style: normal; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; opacity: 0; }
+.gd.up { color: var(--c); }
+.gd.down { color: var(--paper-dim); }
+.gd.show { animation: deltaPop 1.6s ease-out; }
+.gleft { min-width: 0; font-size: 11px; color: var(--paper-dim); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grow[data-state="edge"] .gv { color: var(--warn); }
+.grow[data-state="burst"] .gv, .grow[data-state="burst"] .gleft { color: var(--danger); }
+@keyframes deltaPop { 0% { opacity: 0; } 12% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
+.mmind b { color: var(--paper); font-size: 15px; font-variant-numeric: tabular-nums; }
+
+/* ---------- play area ---------- */
+.play {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(320px, 1fr);
+  grid-template-areas: "stage gauge" "stage hits";
+  grid-template-rows: auto 1fr;
+  gap: 14px 18px;
+  padding-block: 4px 8px;
+  align-items: start;
+}
+.stage-col { grid-area: stage; min-width: 0; }
+.stage {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  max-width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--ink-3);
+  isolation: isolate;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.stage canvas, .stage .photo, .stage .layer, .stage .floats, .stage .zones {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.stage .photo { background-size: cover; background-position: center; }
+.stage .photo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(8, 10, 14, 0.35), rgba(8, 10, 14, 0) 22%, rgba(8, 10, 14, 0) 70%, rgba(8, 10, 14, 0.55));
+}
+.stage .floats, .stage .zones { pointer-events: none; }
+.room-label {
+  position: absolute;
+  top: 2%;
+  left: 2%;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: rgba(8, 10, 14, 0.55);
+  font-family: var(--f-display);
+  font-size: clamp(13px, 1.7vw, 18px);
+  white-space: nowrap;
+}
+.room-label small { font-family: var(--f-body); font-size: 11px; color: var(--paper-dim); }
+.zone-line {
+  position: absolute;
+  top: 2%;
+  bottom: calc(100% - var(--floor));
+  border-left: 2px dashed rgba(236, 229, 212, 0.4);
+}
+.zone-label {
+  position: absolute;
+  top: 1.5%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(8, 10, 14, 0.55);
+  font-size: clamp(11px, 1.4vw, 14px);
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--c);
+}
+.zone-label small { font-weight: 400; color: var(--paper-dim); margin-left: 4px; }
+.t {
+  position: absolute;
+  left: var(--x);
+  transform: translateX(-50%);
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--paper);
+  -webkit-tap-highlight-color: transparent;
+}
+.t-thread {
+  top: var(--thread-top);
+  height: calc(var(--floor) - var(--thread-top));
+  width: clamp(40px, 8.5%, 84px);
+}
+.t-line { position: absolute; left: 50%; top: 0; width: 20px; height: 100%; margin-left: -10px; overflow: visible; }
+.t-line path { fill: none; stroke: var(--c); vector-effect: non-scaling-stroke; }
+.t-line .halo { stroke-width: 9; opacity: 0.22; }
+.t-line .core { stroke-width: 2.5; }
+.t-fl {
+  position: absolute;
+  left: 50%;
+  width: clamp(16px, 2.3vw, 26px);
+  height: clamp(16px, 2.3vw, 26px);
+  transform: translate(-50%, -50%);
+  color: var(--c);
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.6));
+}
+.t-thread:hover .t-line .halo, .t-thread:focus-visible .t-line .halo { opacity: 0.45; }
+.t-beast {
+  bottom: calc(100% - var(--floor));
+  width: clamp(46px, 9.5%, 92px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+.seal {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 3px solid var(--c);
+  background: radial-gradient(circle at 35% 30%, #2b3040, #0c0e13 72%);
+  box-shadow: 0 0 0 3px rgba(8, 10, 14, 0.5), 0 0 22px -2px var(--c);
+  font-family: var(--f-display);
+  font-size: clamp(13px, 1.8vw, 22px);
+  line-height: 1;
+  color: var(--c);
+  letter-spacing: -0.03em;
+}
+.t-beast:hover .seal, .t-beast:focus-visible .seal { box-shadow: 0 0 0 3px rgba(8, 10, 14, 0.5), 0 0 34px 2px var(--c); }
+.t-under {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  pointer-events: none;
+}
+.t-prev {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(8, 10, 14, 0.82);
+  font-size: clamp(10px, 1.15vw, 13px);
+  font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.t-prev span { color: var(--cl); }
+.t-prev .down { font-weight: 600; }
+.t-prev .off { opacity: 0.45; text-decoration: line-through; }
+.t-prev .to { color: var(--paper-dim); font-weight: 400; margin-left: 3px; }
+.stage.dense .t-prev { font-size: clamp(9px, 1vw, 12px); padding: 2px 4px; }
+.stage.dense .t-prev .to { display: none; }
+.t-tag {
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: rgba(8, 10, 14, 0.78);
+  border: 1px solid var(--c);
+  font-size: clamp(11px, 1.3vw, 13px);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.t[data-level="good"] .t-tag { background: var(--gold); border-color: var(--gold); color: var(--on-gold); }
+.t[data-level="edge"] .t-tag { border-color: var(--warn); color: var(--warn); }
+.t[data-level="burst"] .t-tag { background: var(--danger); border-color: var(--danger); color: #fff; }
+.t-key {
+  position: absolute;
+  left: 50%;
+  top: -9px;
+  transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(8, 10, 14, 0.85);
+  border: 1px solid var(--c);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.t-beast .t-key { top: -6px; left: auto; right: -6px; transform: none; }
+.t.flash::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 3px solid var(--c);
+  animation: ping 0.6s ease-out forwards;
+  pointer-events: none;
+}
+.t-thread.flash::after { border-radius: 20px; }
+@keyframes ping { from { opacity: 0.95; transform: scale(0.9); } to { opacity: 0; transform: scale(1.35); } }
+.float {
+  position: absolute;
+  transform: translate(-50%, 0);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: rgba(8, 10, 14, 0.82);
+  font-size: clamp(12px, 1.5vw, 15px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  animation: rise 1.5s ease-out forwards;
+}
+.float .up { color: var(--cu); }
+.float .down { color: var(--cd); }
+.float .boom { color: var(--danger); }
+@keyframes rise { 0% { opacity: 0; transform: translate(-50%, 8px); } 12% { opacity: 1; transform: translate(-50%, 0); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -26px); } }
+.boom-flash { position: absolute; inset: 0; background: radial-gradient(circle, rgba(255, 90, 76, 0) 30%, rgba(255, 90, 76, 0.45)); animation: boom 0.9s ease-out forwards; }
+@keyframes boom { from { opacity: 1; } to { opacity: 0; } }
+.drop-hint {
+  position: absolute;
+  inset: 10px;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--gold);
+  border-radius: 8px;
+  background: rgba(8, 10, 14, 0.7);
+  font-weight: 600;
+  pointer-events: none;
+}
+.stage-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  padding-top: 10px;
+  font-size: 13px;
+}
+.portals { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; color: var(--paper-dim); }
+.bg-ctl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--paper-dim); }
+
+/* ---------- hit list ---------- */
+.hits { grid-area: hits; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.advice {
+  padding: 12px 14px;
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 14px;
+}
+.advice p { margin: 0; }
+.advice p + p { margin-top: 6px; }
+.advice b { font-weight: 700; }
+.advice .k { color: var(--c); font-weight: 700; }
+.advice .muted { color: var(--paper-dim); }
+.cards { display: flex; flex-direction: column; gap: 8px; }
+.card {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  align-items: center;
+  padding: 11px 12px;
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.card[data-level="burst"] { border-color: rgba(255, 90, 76, 0.6); }
+.card[data-level="good"] { border-color: rgba(216, 179, 91, 0.55); }
+.c-ico { width: 38px; height: 46px; display: grid; place-items: center; }
+.c-ico svg { width: 100%; height: 100%; overflow: visible; }
+.c-seal {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--c);
+  font-family: var(--f-display);
+  font-size: 12px;
+  color: var(--c);
+  letter-spacing: -0.04em;
+}
+.c-body { min-width: 0; }
+.c-title { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-weight: 600; }
+.c-title kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  font: 600 11px/1 var(--f-body);
+  color: var(--paper-dim);
+}
+.c-sub { font-size: 12.5px; color: var(--paper-dim); }
+.fx-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--c);
+}
+.chip.up { background: var(--c); color: var(--ink); }
+.chip.down { color: var(--c); }
+.chip.off { opacity: 0.4; text-decoration: line-through; }
+.c-after { margin-top: 4px; font-size: 12.5px; color: var(--paper-dim); font-variant-numeric: tabular-nums; }
+.c-act { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.lvl {
+  align-self: flex-end;
+  padding: 1px 8px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 700;
+  border: 1px solid var(--line);
+  color: var(--paper-dim);
+  white-space: nowrap;
+}
+.lvl[data-level="good"] { background: var(--gold); border-color: var(--gold); color: var(--on-gold); }
+.lvl[data-level="edge"] { border-color: var(--warn); color: var(--warn); }
+.lvl[data-level="burst"] { background: var(--danger); border-color: var(--danger); color: #fff; }
+.hit {
+  padding: 7px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--paper);
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.hit:active { transform: translateY(1px); }
+.hit2 {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: transparent;
+  font-size: 12px;
+  color: var(--paper-dim);
+  white-space: nowrap;
+}
+.keys { margin: 2px 0 0; font-size: 12px; color: var(--paper-dim); }
+
+/* ---------- lower panels ---------- */
+.lower {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  padding-block: 18px;
+}
+.panel h2, .cheat h2 { font-family: var(--f-display); font-weight: 400; font-size: 22px; margin-bottom: 10px; }
+.panel h2 small { font-family: var(--f-body); font-size: 12px; color: var(--paper-dim); margin-left: 8px; }
+.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 300px; overflow-y: auto; font-size: 13.5px; }
+.log li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--ink-2);
+}
+.log li .n { color: var(--paper-dim); font-variant-numeric: tabular-nums; }
+.log li .what { font-weight: 600; }
+.log li .res { display: block; color: var(--paper-dim); font-variant-numeric: tabular-nums; }
+.log li .res .k { color: var(--c); }
+.log li .boom { color: var(--danger); font-weight: 700; }
+.log .empty { display: block; background: none; padding: 6px 0; color: var(--paper-dim); }
+.notes { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.notes li::marker { color: var(--gold); }
+
+/* ---------- cheat sheet ---------- */
+.cheat { padding-block: 10px 26px; border-top: 1px solid var(--line); }
+.cheat-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; padding-top: 18px; }
+.cheat-head p { margin: 0; color: var(--paper-dim); font-size: 13.5px; }
+.cheat-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr);
+  gap: 22px;
+  margin-top: 8px;
+  align-items: start;
+}
+.cycle { width: 100%; max-width: 380px; height: auto; display: block; }
+.cycle .node { fill: var(--ink-2); stroke-width: 3; }
+.cycle .nm { font-size: 17px; font-weight: 700; text-anchor: middle; }
+.cycle .ss { font-size: 11px; text-anchor: middle; fill: var(--paper-dim); }
+.cycle .arrow { stroke: var(--paper-dim); stroke-width: 2; fill: none; }
+.cycle .ah { fill: var(--paper-dim); }
+.cycle .al { font-size: 11.5px; fill: var(--paper); text-anchor: middle; }
+.cycle .al-bg { fill: var(--ink); }
+.rule {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 14px;
+}
+.rule b { color: var(--gold); }
+.tables { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.tables h3 { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+.tscroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; min-width: 460px; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { font-size: 12px; font-weight: 600; color: var(--paper-dim); letter-spacing: 0.04em; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.sw { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.sw i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; }
+.sw.line i { width: 16px; height: 3px; border-radius: 2px; }
+.warn-note { color: var(--warn); font-weight: 600; }
+footer { padding-block: 18px 34px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--paper-dim); }
+footer p { margin: 0 0 6px; max-width: 80ch; }
+footer a { color: var(--paper); }
+
+@media (max-width: 980px) {
+  .play { grid-template-columns: minmax(0, 1fr); grid-template-areas: "gauge" "stage" "hits"; grid-template-rows: auto; }
+  .lower { grid-template-columns: minmax(0, 1fr); }
+  .cheat-grid { grid-template-columns: minmax(0, 1fr); }
+}
+/* Phones (built against iPhone 17 Pro, 402pt wide): header, scene tabs, gauge and stage fit on one screen. */
+@media (max-width: 600px) {
+  body { font-size: 14px; }
+  .top { padding-block: 10px 8px; gap: 8px; }
+  .eyebrow, .lede { display: none; }
+  h1 { font-size: 24px; }
+  .ctl { width: 100%; flex-wrap: nowrap; gap: 8px; }
+  .seg { flex: 1 1 auto; min-width: 0; }
+  .seg button { flex: 1 1 0; padding: 7px 2px; font-size: 13px; }
+  .amt { flex: none; gap: 6px; font-size: 12px; }
+  .amt-l { display: none; }
+  .amt-s { display: inline; }
+  .amt input { width: 50px; padding: 6px; }
+  .scenes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; padding-block: 0 10px; }
+  .sgroup { display: contents; }
+  .slabel, .sbtn .dot { display: none; }
+  .sbtn { justify-content: center; padding: 8px 2px; font-size: 13px; white-space: nowrap; }
+  .sbtn .s b { color: var(--c, var(--paper)); font-weight: 700; }
+  .sbtn .l { display: none; }
+  .sbtn .s { display: inline; }
+  .play { gap: 10px; padding-block: 0 8px; }
+  .gpanel { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 6px 12px; padding: 8px 12px 10px; }
+  .tri .nm, .tri .val, .tri .left { display: none; }
+  .tri .center { font-size: 15px; }
+  .glist { display: block; }
+  .gside { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; }
+  .mind { flex-direction: row; align-items: baseline; gap: 6px; }
+  .mind b { font-size: 20px; }
+  .btns { flex-direction: row; gap: 6px; }
+  .btn { padding: 8px 10px; }
+  .stage { aspect-ratio: 4 / 3; border-radius: 6px; }
+  .stage-bar { padding-top: 8px; font-size: 12px; }
+  .room-label { font-size: 14px; }
+  .hits { gap: 8px; }
+  .card { padding: 10px; gap: 4px 10px; }
+  .hit { padding: 9px 14px; }
+  .hit2 { padding: 6px 8px; }
+  .keys { display: none; }
+  .mini-in { gap: 6px 14px; padding-block: 7px; }
+  .mmind { display: none; }
+  .mini .btn { margin-left: auto; padding: 6px 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tri .fill { transition: none; }
+  .float, .t.flash::after, .boom-flash, .tri .dl.show, .tri .edge.hl .fill { animation-duration: 0.01s; }
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="fl-plum" viewBox="-12 -12 24 24">
+      <g fill="currentColor">
+        <circle cx="0" cy="-5.6" r="5"/><circle cx="5.3" cy="-1.7" r="5"/><circle cx="3.3" cy="4.5" r="5"/><circle cx="-3.3" cy="4.5" r="5"/><circle cx="-5.3" cy="-1.7" r="5"/>
+      </g>
+      <circle r="2.6" fill="#ffe7a3"/>
+      <g fill="#fff3c9"><circle cx="0" cy="-3.6" r="0.9"/><circle cx="3.4" cy="-1.1" r="0.9"/><circle cx="2.1" cy="2.9" r="0.9"/><circle cx="-2.1" cy="2.9" r="0.9"/><circle cx="-3.4" cy="-1.1" r="0.9"/></g>
+    </symbol>
+    <symbol id="fl-orchid" viewBox="-12 -12 24 24">
+      <g fill="currentColor">
+        <ellipse cx="0" cy="-6" rx="2.7" ry="6.2"/>
+        <ellipse cx="0" cy="-6" rx="2.7" ry="6.2" transform="rotate(115)"/>
+        <ellipse cx="0" cy="-6" rx="2.7" ry="6.2" transform="rotate(-115)"/>
+        <ellipse cx="0" cy="-4.5" rx="1.9" ry="4.6" transform="rotate(55)" opacity="0.8"/>
+        <ellipse cx="0" cy="-4.5" rx="1.9" ry="4.6" transform="rotate(-55)" opacity="0.8"/>
+      </g>
+      <ellipse cx="0" cy="1.2" rx="2.3" ry="3" fill="#f6fff0"/>
+      <circle cx="0" cy="0.6" r="1" fill="#ff7aa0"/>
+    </symbol>
+    <symbol id="fl-mum" viewBox="-12 -12 24 24">
+      <g fill="currentColor">
+        <ellipse cx="0" cy="-6.5" rx="1.5" ry="5"/><ellipse cx="0" cy="-6.5" rx="1.5" ry="5" transform="rotate(22.5)"/><ellipse cx="0" cy="-6.5" rx="1.5" ry="5" transform="rotate(45)"/><ellipse cx="0" cy="-6.5" rx="1.5" ry="5" transform="rotate(67.5)"/><ellipse cx="0" cy="-6.5" rx="1.5" ry="5" transform="rotate(90)"/><ellipse cx="0" cy="-6.5" rx="1.5" ry="5" transform="rotate(112.5)"/><ellipse cx="0" cy="-6.5" rx="1.5" ry="5" transform="rotate(135)"/><ellipse cx="0" cy="-6.5" rx="1.5" ry="5" transform="rotate(157.5)"/><ellipse cx="0" cy="-6.5" rx="1.5" ry="5" transform="rotate(180)"/><ellipse cx="0" cy="-6.5" rx="1.5" ry="5" transform="rotate(202.5)"/><ellipse cx="0" cy="-6.5" rx="1.5" ry="5" transform="rotate(225)"/><ellipse cx="0" cy="-6.5" rx="1.5" ry="5" transform="rotate(247.5)"/><ellipse cx="0" cy="-6.5" rx="1.5" ry="5" transform="rotate(270)"/><ellipse cx="0" cy="-6.5" rx="1.5" ry="5" transform="rotate(292.5)"/><ellipse cx="0" cy="-6.5" rx="1.5" ry="5" transform="rotate(315)"/><ellipse cx="0" cy="-6.5" rx="1.5" ry="5" transform="rotate(337.5)"/>
+      </g>
+      <circle r="3.6" fill="#ffe1a0"/>
+      <circle r="1.8" fill="#e98b1c"/>
+    </symbol>
+  </defs>
+</svg>
+
+<header class="top wrap">
+  <div class="brand">
+    <p class="eyebrow">메이플스토리 · 카링</p>
+    <h1>카링 실 게이지</h1>
+    <p class="lede">실이나 흉수에게 맞으면 어느 게이지가 오르고 어느 게이지가 내려가는지 보여줘요. 방을 고르고, 맞은 걸 누르면서 게이지를 따라가세요.</p>
+  </div>
+  <div class="ctl">
+    <div class="seg" id="diffSeg" role="group" aria-label="난이도"></div>
+    <label class="amt" for="amt"><span class="amt-l">1회 증감량</span><span class="amt-s">증감량</span>
+      <input id="amt" type="number" inputmode="numeric" min="1" max="500" step="1" value="55">
+      <button type="button" class="linkbtn" id="amtReset" hidden>기본값</button>
+    </label>
+  </div>
+</header>
+
+<nav class="scenes wrap" id="scenes" aria-label="페이즈와 방"></nav>
+
+<div class="mini" id="mini" hidden>
+  <div class="mini-in wrap" id="miniIn"></div>
+</div>
+
+<main class="play wrap">
+  <section class="gpanel" id="gpanel" aria-label="실 게이지">
+    <svg class="tri" id="tri" viewBox="0 0 440 398" role="img" aria-label="실 게이지"></svg>
+    <div class="glist" id="glist" aria-hidden="true"></div>
+    <div class="gside">
+      <div class="mind" id="mind"><span>정신력</span><b class="num" id="mindVal">1000</b></div>
+      <div class="btns">
+        <button type="button" class="btn" id="undo">되돌리기</button>
+        <button type="button" class="btn" id="reset">처음부터</button>
+        <button type="button" class="btn" id="editBtn" aria-expanded="false" aria-controls="editForm">값 맞추기</button>
+      </div>
+    </div>
+    <form class="edit" id="editForm" hidden>
+      <label for="e-gungi">궁기 <input id="e-gungi" type="number" inputmode="numeric" min="0" max="1000"></label>
+      <label for="e-doul">도올 <input id="e-doul" type="number" inputmode="numeric" min="0" max="1000"></label>
+      <label for="e-hondon">혼돈 <input id="e-hondon" type="number" inputmode="numeric" min="0" max="1000"></label>
+      <button type="submit" class="btn">적용</button>
+      <button type="button" class="btn" id="editCancel">닫기</button>
+      <span class="hint">게임 화면 숫자와 맞출 때 써요. 0이나 1000은 터진 걸로 봐요.</span>
+    </form>
+  </section>
+
+  <section class="stage-col" aria-label="전투 화면">
+    <div class="stage" id="stage">
+      <canvas id="paint" aria-hidden="true"></canvas>
+      <div class="photo" id="photo" hidden></div>
+      <canvas id="fx" aria-hidden="true"></canvas>
+      <div class="zones" id="zones"></div>
+      <div class="layer" id="layer"></div>
+      <div class="floats" id="floats" aria-hidden="true"></div>
+      <div class="drop-hint" id="dropHint" hidden>여기에 놓으면 이 방의 배경이 돼요</div>
+    </div>
+    <div class="stage-bar">
+      <div class="portals" id="portals"></div>
+      <div class="bg-ctl">
+        <span id="bgState">배경: 기본 그림</span>
+        <label class="btn" for="bgFile">실제 배경 넣기</label>
+        <input type="file" id="bgFile" accept="image/*" hidden>
+        <button type="button" class="btn" id="bgClear" hidden>기본 그림으로</button>
+      </div>
+    </div>
+  </section>
+
+  <aside class="hits" aria-label="맞을 수 있는 것">
+    <div class="advice" id="advice" aria-live="polite"></div>
+    <div class="cards" id="cards"></div>
+    <p class="keys">키보드: 숫자키로 맞음, Shift+숫자키로 X자 ×2, Z로 되돌리기</p>
+  </aside>
+</main>
+
+<section class="lower wrap">
+  <div class="panel">
+    <h2>맞은 기록 <small id="logCount"></small></h2>
+    <ol class="log" id="log"></ol>
+  </div>
+  <div class="panel">
+    <h2 id="notesTitle">이 방 메모</h2>
+    <ul class="notes" id="notes"></ul>
+  </div>
+</section>
+
+<section class="cheat wrap" aria-labelledby="cheatTitle">
+  <div class="cheat-head">
+    <h2 id="cheatTitle">한눈에 보기</h2>
+    <p>실 색과 게이지 색이 달라서 헷갈려요. 실은 꽃 색, 게이지는 흉수 색이에요.</p>
+  </div>
+  <div class="cheat-grid">
+    <div>
+      <svg class="cycle" viewBox="0 0 340 300" role="img" aria-label="궁기를 맞으면 혼돈이, 혼돈을 맞으면 도올이, 도올을 맞으면 궁기가 내려가요">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path class="ah" d="M0 0 L10 5 L0 10 z"/>
+          </marker>
+        </defs>
+        <path class="arrow" d="M262 176 Q 268 110 205 72" marker-end="url(#ah)"/>
+        <path class="arrow" d="M135 72 Q 72 110 78 176" marker-end="url(#ah)"/>
+        <path class="arrow" d="M118 240 Q 170 268 222 240" marker-end="url(#ah)"/>
+        <rect class="al-bg" x="226" y="98" width="88" height="20" rx="4"/>
+        <text class="al" x="270" y="112">궁기 ▲ → 혼돈 ▼</text>
+        <rect class="al-bg" x="26" y="98" width="88" height="20" rx="4"/>
+        <text class="al" x="70" y="112">혼돈 ▲ → 도올 ▼</text>
+        <rect class="al-bg" x="126" y="252" width="88" height="20" rx="4"/>
+        <text class="al" x="170" y="266">도올 ▲ → 궁기 ▼</text>
+        <g transform="translate(170 52)">
+          <circle class="node" r="34" style="stroke: var(--g-hondon)"/>
+          <text class="nm" y="6" style="fill: var(--g-hondon)">혼돈</text>
+          <text class="ss" y="52">가을 · 노란 실</text>
+        </g>
+        <g transform="translate(272 222)">
+          <circle class="node" r="34" style="stroke: var(--g-gungi)"/>
+          <text class="nm" y="6" style="fill: var(--g-gungi)">궁기</text>
+          <text class="ss" y="52">봄 · 빨간 실</text>
+        </g>
+        <g transform="translate(68 222)">
+          <circle class="node" r="34" style="stroke: var(--g-doul)"/>
+          <text class="nm" y="6" style="fill: var(--g-doul)">도올</text>
+          <text class="ss" y="52">여름 · 초록 실</text>
+        </g>
+      </svg>
+      <p class="rule">맞은 계절의 게이지는 <b>오르고</b>, 바로 전 계절의 게이지는 <b>내려가요</b>. 봄(궁기) → 여름(도올) → 가을(혼돈) → 다시 봄. 그래서 어떤 게이지를 내리고 싶으면 <b>다음 계절</b> 실을 맞으면 돼요. 삼각형 게이지로 보면 맞은 게이지 바로 뒤(시계 반대쪽, 꼬리)에 붙은 게이지가 내려가요.</p>
+    </div>
+    <div class="tables">
+      <div>
+        <h3>흉수별 색과 효과</h3>
+        <div class="tscroll">
+          <table>
+            <thead><tr><th>흉수</th><th>계절</th><th>실 (꽃)</th><th>게이지</th><th>맞으면</th></tr></thead>
+            <tbody>
+              <tr><td><b>궁기</b></td><td>봄</td><td><span class="sw line" style="--c: var(--t-red)"><i></i>빨간 실 · 매화</span></td><td><span class="sw" style="--c: var(--g-gungi)"><i></i>노랑 · 오른쪽 아래</span></td><td>궁기 ▲ · 혼돈 ▼</td></tr>
+              <tr><td><b>도올</b></td><td>여름</td><td><span class="sw line" style="--c: var(--t-green)"><i></i>초록 실 · 난초</span></td><td><span class="sw" style="--c: var(--g-doul)"><i></i>하늘색 · 왼쪽 아래</span></td><td>도올 ▲ · 궁기 ▼</td></tr>
+              <tr><td><b>혼돈</b></td><td>가을</td><td><span class="sw line" style="--c: var(--t-yellow)"><i></i>노란 실 · 국화</span></td><td><span class="sw" style="--c: var(--g-hondon)"><i></i>보라 · 위</span></td><td>혼돈 ▲ · 도올 ▼</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="c-sub" style="margin-top:6px"><span class="warn-note">노란 실은 혼돈이에요.</span> 궁기 게이지가 노란색이라 자주 헷갈려요. 선 색보다 피어나는 꽃(매화·난초·국화)으로 보면 정확해요.</p>
+      </div>
+      <div>
+        <h3>어디에 어떤 실이 나오나</h3>
+        <div class="tscroll">
+          <table>
+            <thead><tr><th>장소</th><th>왼쪽</th><th>가운데</th><th>오른쪽</th></tr></thead>
+            <tbody>
+              <tr><td>1페 궁기의 방</td><td><span class="sw line" style="--c: var(--t-green)"><i></i>초록 (도올)</span></td><td>궁기</td><td><span class="sw line" style="--c: var(--t-yellow)"><i></i>노랑 (혼돈)</span></td></tr>
+              <tr><td>1페 혼돈의 방</td><td><span class="sw line" style="--c: var(--t-red)"><i></i>빨강 (궁기)</span></td><td>혼돈</td><td><span class="sw line" style="--c: var(--t-green)"><i></i>초록 (도올)</span></td></tr>
+              <tr><td>1페 도올의 방</td><td><span class="sw line" style="--c: var(--t-red)"><i></i>빨강 (궁기)</span></td><td>도올</td><td><span class="sw line" style="--c: var(--t-yellow)"><i></i>노랑 (혼돈)</span></td></tr>
+              <tr><td>2페 카링</td><td><span class="sw line" style="--c: var(--t-red)"><i></i>빨강 (궁기)</span></td><td><span class="sw line" style="--c: var(--t-green)"><i></i>초록 (도올)</span></td><td><span class="sw line" style="--c: var(--t-yellow)"><i></i>노랑 (혼돈)</span></td></tr>
+              <tr><td>3페 세 구역</td><td><span class="sw line" style="--c: var(--t-red)"><i></i>궁기 구역</span></td><td><span class="sw line" style="--c: var(--t-yellow)"><i></i>혼돈 구역</span></td><td><span class="sw line" style="--c: var(--t-green)"><i></i>도올 구역</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="c-sub" style="margin-top:6px">1페이즈 방에는 그 방 흉수를 뺀 나머지 두 색 실만 왼쪽부터 봄·여름·가을 순서로 나와요.</p>
+      </div>
+      <div>
+        <h3>한 번에 바뀌는 양</h3>
+        <div class="tscroll">
+          <table>
+            <thead><tr><th>페이즈</th><th class="n">이지</th><th class="n">노멀</th><th class="n">하드</th><th class="n">익스트림</th></tr></thead>
+            <tbody id="amtTable"></tbody>
+          </table>
+        </div>
+        <p class="c-sub" style="margin-top:6px">X자로 겹친 실에 맞으면 2배. 오르는 양과 내려가는 양이 같아서 터지기 전까지 세 게이지 합은 늘 1500이에요.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="wrap">
+  <p>게이지는 0에서 1000 사이, 셋 다 500에서 시작해요. 삼각형 게이지 옆 ▲▼ 숫자는 그쪽으로 몇 대 더 맞으면 터지는지예요. 하나라도 0이나 1000에 닿으면 터지고 정신력이 350 줄어요. 터진 게이지는 더 이상 변하지 않아요.</p>
+  <p>수치와 실 배치는 커뮤니티 공략(<a href="https://namu.wiki/w/%EC%B9%B4%EB%A7%81/%EB%B3%B4%EC%8A%A4%20%EB%AA%AC%EC%8A%A4%ED%84%B0/%EA%B3%B5%EA%B2%A9%20%ED%8C%A8%ED%84%B4" target="_blank" rel="noopener">나무위키 카링 공격 패턴</a>, <a href="https://www.inven.co.kr/board/maple/2304/36401" target="_blank" rel="noopener">인벤 카링 게이지 관리법</a>, <a href="https://arca.live/b/maplestory/179455667" target="_blank" rel="noopener">아카라이브 카링 게이지 설명</a>) 기준이에요. 흉수 공격도 실과 같은 양으로 계산해요. 패치로 바뀌면 위의 1회 증감량 칸에서 고치면 돼요.</p>
+  <p>비공식 팬 도구예요. 넥슨, 메이플스토리와 관계없어요.</p>
+</footer>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ---------- game data ---------- */
+  const ORDER = ['gungi', 'doul', 'hondon'];
+  const BEASTS = {
+    gungi:  { name: '궁기', season: '봄',  seasonKey: 'spring', gaugeName: '노란 게이지', thread: 'red',    lowers: 'hondon' },
+    doul:   { name: '도올', season: '여름', seasonKey: 'summer', gaugeName: '하늘색 게이지', thread: 'green',  lowers: 'gungi' },
+    hondon: { name: '혼돈', season: '가을', seasonKey: 'autumn', gaugeName: '보라 게이지', thread: 'yellow', lowers: 'doul' }
+  };
+  const THREADS = {
+    red:    { beast: 'gungi',  name: '빨간 실', flower: '매화', sym: 'fl-plum' },
+    green:  { beast: 'doul',   name: '초록 실', flower: '난초', sym: 'fl-orchid' },
+    yellow: { beast: 'hondon', name: '노란 실', flower: '국화', sym: 'fl-mum' }
+  };
+  const DIFFS = [['easy', '이지'], ['normal', '노멀'], ['hard', '하드'], ['extreme', '익스트림']];
+  // per phase 1, 2, 3 (namu wiki 사군자 table, latest revision)
+  const AMOUNTS = { easy: [55, 100, 65], normal: [60, 110, 70], hard: [70, 110, 90], extreme: [85, 150, 110] };
+  const MIND_START = 1000;
+  const MIND_PER_BURST = 350;
+
+  const P1_COMMON = [
+    '1페이즈는 보통 방마다 2명씩 나눠 맡아요.',
+    '1페이즈를 한 번도 안 터뜨리고 끝내면 정신력 300을 돌려받아요 (최대 1000). 1페에서 터지면 보통 리트를 고민해요.'
+  ];
+  const SCENES = {
+    'p1-gungi': {
+      phase: 1, nav: '궁기의 방', title: '궁기의 방', sub: '1페이즈 · 봄', dot: 'gungi',
+      sections: [{ from: 0, to: 100, season: 'spring' }],
+      targets: [
+        { kind: 'thread', thread: 'green', x: 18, pos: '왼쪽' },
+        { kind: 'beast', beast: 'gungi', x: 50, pos: '가운데' },
+        { kind: 'thread', thread: 'yellow', x: 82, pos: '오른쪽' }
+      ],
+      portals: [['p1-doul', '◀ 도올의 방'], ['p1-hondon', '혼돈의 방 ▶']],
+      notes: [
+        '이 방 실은 다른 두 흉수 색이에요. 왼쪽 초록(도올), 오른쪽 노랑(혼돈). 빨간 실은 안 나와요.',
+        '궁기 공격에 맞으면 궁기 ▲ 혼돈 ▼.',
+        '궁기가 높으면 왼쪽 초록 실, 혼돈이 낮으면 오른쪽 노란 실을 맞아서 맞춰요.',
+        '궁기를 잡으면 가운데에 포탈이 열려요. 왼쪽은 도올의 방, 오른쪽은 혼돈의 방 (실 위치와 같아요). 15초 안에 안 고르면 남은 방으로 무작위 이동해요.'
+      ].concat(P1_COMMON)
+    },
+    'p1-hondon': {
+      phase: 1, nav: '혼돈의 방', title: '혼돈의 방', sub: '1페이즈 · 가을', dot: 'hondon',
+      sections: [{ from: 0, to: 100, season: 'autumn' }],
+      targets: [
+        { kind: 'thread', thread: 'red', x: 18, pos: '왼쪽' },
+        { kind: 'beast', beast: 'hondon', x: 50, pos: '가운데' },
+        { kind: 'thread', thread: 'green', x: 82, pos: '오른쪽' }
+      ],
+      portals: [['p1-gungi', '◀ 궁기의 방'], ['p1-doul', '도올의 방 ▶']],
+      notes: [
+        '이 방 실은 왼쪽 빨강(궁기), 오른쪽 초록(도올). 노란 실은 안 나와요.',
+        '혼돈 공격에 맞으면 혼돈 ▲ 도올 ▼.',
+        '혼돈이 높으면 왼쪽 빨간 실, 도올이 낮으면 오른쪽 초록 실.',
+        '혼돈을 잡으면 왼쪽 포탈은 궁기의 방, 오른쪽 포탈은 도올의 방이에요.'
+      ].concat(P1_COMMON)
+    },
+    'p1-doul': {
+      phase: 1, nav: '도올의 방', title: '도올의 방', sub: '1페이즈 · 여름', dot: 'doul',
+      sections: [{ from: 0, to: 100, season: 'summer' }],
+      targets: [
+        { kind: 'thread', thread: 'red', x: 18, pos: '왼쪽' },
+        { kind: 'beast', beast: 'doul', x: 50, pos: '가운데' },
+        { kind: 'thread', thread: 'yellow', x: 82, pos: '오른쪽' }
+      ],
+      portals: [['p1-gungi', '◀ 궁기의 방'], ['p1-hondon', '혼돈의 방 ▶']],
+      notes: [
+        '이 방 실은 왼쪽 빨강(궁기), 오른쪽 노랑(혼돈). 초록 실은 안 나와요.',
+        '도올 공격에 맞으면 도올 ▲ 궁기 ▼.',
+        '도올이 높으면 오른쪽 노란 실, 궁기가 낮으면 왼쪽 빨간 실.',
+        '도올을 잡으면 왼쪽 포탈은 궁기의 방, 오른쪽 포탈은 혼돈의 방이에요.'
+      ].concat(P1_COMMON)
+    },
+    'p2': {
+      phase: 2, nav: '카링', title: '카링', sub: '2페이즈 · 봄 · 여름 · 가을', dot: null,
+      sections: [{ from: 0, to: 33.34, season: 'spring' }, { from: 33.33, to: 66.67, season: 'summer' }, { from: 66.66, to: 100, season: 'autumn' }],
+      targets: [
+        { kind: 'thread', thread: 'red', x: 17, pos: '왼쪽' },
+        { kind: 'thread', thread: 'green', x: 50, pos: '가운데' },
+        { kind: 'thread', thread: 'yellow', x: 83, pos: '오른쪽' }
+      ],
+      portals: [],
+      bar: '왼쪽 봄(빨강) · 가운데 여름(초록) · 오른쪽 가을(노랑)',
+      notes: [
+        '흉수는 없고 카링의 실만 내려와요. 왼쪽 빨강(궁기), 가운데 초록(도올), 오른쪽 노랑(혼돈).',
+        '한 번에 바뀌는 양이 세 페이즈 중 가장 커요. 몇 대만 잘못 맞아도 금방 끝까지 가요.',
+        '카링은 비행 패턴 뒤에 순간이동해요. 게이지가 모자란 쪽으로 가서 카링을 그쪽으로 끌고, 딜하면서 그쪽 실을 맞으세요.',
+        '게이지는 3페이즈로 그대로 넘어가요. 3페이즈 시작을 생각해서 남겨 두세요.'
+      ]
+    },
+    'p3': {
+      phase: 3, nav: '세 구역', title: '세 구역', sub: '3페이즈', dot: null,
+      sections: [{ from: 0, to: 33.34, season: 'spring' }, { from: 33.33, to: 66.67, season: 'autumn' }, { from: 66.66, to: 100, season: 'summer' }],
+      zones: [
+        { at: 16.67, beast: 'gungi', label: '궁기 구역', season: '봄' },
+        { at: 50, beast: 'hondon', label: '혼돈 구역', season: '가을' },
+        { at: 83.33, beast: 'doul', label: '도올 구역', season: '여름' }
+      ],
+      targets: [
+        { kind: 'thread', thread: 'red', x: 9.5, pos: '궁기 구역' },
+        { kind: 'beast', beast: 'gungi', x: 24, pos: '궁기 구역' },
+        { kind: 'thread', thread: 'yellow', x: 43, pos: '혼돈 구역' },
+        { kind: 'beast', beast: 'hondon', x: 57.5, pos: '혼돈 구역' },
+        { kind: 'thread', thread: 'green', x: 76.5, pos: '도올 구역' },
+        { kind: 'beast', beast: 'doul', x: 91, pos: '도올 구역' }
+      ],
+      portals: [],
+      bar: '왼쪽 봄(빨강) · 가운데 가을(노랑) · 오른쪽 여름(초록)',
+      notes: [
+        '왼쪽 궁기(봄), 가운데 혼돈(가을), 오른쪽 도올(여름). 구역마다 실과 흉수가 같은 게이지를 올려요.',
+        '자기 구역에만 있으면 그 게이지만 계속 올라요. 그래서 보통 구역마다 2명씩(2/2/2) 서서 셋이 서로 맞물리게 해요.',
+        '카링이 없는 구역에서는 회복이 막히고 받는 피해가 커져요.',
+        '한 구역에 3명 이상 모이면 흉수가 받는 최종 데미지가 줄어요.',
+        '터빌: 게이지 2개를 일부러 터뜨려서 정신력 300으로 진행하고 남은 하나만 관리하는 방법이에요. 터진 게이지는 더 이상 안 변해요. 두 번 죽으면 끝이라 실수할 여유가 거의 없어요.'
+      ]
+    }
+  };
+  const SCENE_ORDER = ['p1-gungi', 'p1-hondon', 'p1-doul', 'p2', 'p3'];
+  const PHASE_LABEL = { 1: '1페이즈', 2: '2페이즈', 3: '3페이즈' };
+
+  /* ---------- state ---------- */
+  const STORE_KEY = 'kaling-thread-gauge-v1';
+  const fresh = () => ({
+    scene: 'p1-gungi', diff: 'easy', over: {},
+    g: { gungi: 500, doul: 500, hondon: 500 },
+    burst: { gungi: false, doul: false, hondon: false },
+    log: [], n: 0
+  });
+  let state = fresh();
+  let undoStack = [];
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      if (!s || !SCENES[s.scene] || !AMOUNTS[s.diff]) return;
+      const base = fresh();
+      for (const k of ORDER) {
+        if (typeof s.g?.[k] === 'number') base.g[k] = clamp(s.g[k]);
+        base.burst[k] = !!s.burst?.[k];
+      }
+      base.scene = s.scene;
+      base.diff = s.diff;
+      base.over = (s.over && typeof s.over === 'object') ? s.over : {};
+      base.log = Array.isArray(s.log) ? s.log.slice(0, 60) : [];
+      base.n = Number.isFinite(s.n) ? s.n : base.log.length;
+      state = base;
+    } catch (e) { /* storage unavailable: keep defaults */ }
+  }
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
+  }
+  function snapshot() { return JSON.stringify({ g: state.g, burst: state.burst, log: state.log, n: state.n }); }
+  function pushUndo() {
+    undoStack.push(snapshot());
+    if (undoStack.length > 80) undoStack.shift();
+  }
+
+  const clamp = v => Math.max(0, Math.min(1000, Math.round(v)));
+  const scene = () => SCENES[state.scene];
+  const phase = () => scene().phase;
+  const amtKey = () => state.diff + '-' + phase();
+  const baseAmount = () => AMOUNTS[state.diff][phase() - 1];
+  function amount() {
+    const o = state.over[amtKey()];
+    return Number.isFinite(o) && o > 0 ? o : baseAmount();
+  }
+
+  /* ---------- rules ---------- */
+  function effectOf(t) {
+    const up = t.kind === 'beast' ? t.beast : THREADS[t.thread].beast;
+    return { up, down: BEASTS[up].lowers };
+  }
+  function simulate(t, mult) {
+    const { up, down } = effectOf(t);
+    const a = amount() * mult;
+    const g = { ...state.g };
+    const burst = { ...state.burst };
+    const newBursts = [];
+    if (!burst[up]) g[up] += a;
+    if (!burst[down]) g[down] -= a;
+    for (const k of [up, down]) {
+      if (!burst[k] && (g[k] >= 1000 || g[k] <= 0)) {
+        burst[k] = true;
+        newBursts.push(k);
+      }
+      g[k] = clamp(g[k]);
+    }
+    return { g, burst, newBursts, up, down, a, upLive: !state.burst[up], downLive: !state.burst[down] };
+  }
+  function spread(g, burst) {
+    let s = 0;
+    for (const k of ORDER) if (!burst[k]) s += (g[k] - 500) * (g[k] - 500);
+    return s;
+  }
+  function judge(t, mult) {
+    const r = simulate(t, mult);
+    if (!r.upLive && !r.downLive) return { level: 'none', text: '변화 없음', r };
+    if (r.newBursts.length) return { level: 'burst', text: '터짐!', r };
+    const a = r.a;
+    if ((r.upLive && r.g[r.up] >= 1000 - a) || (r.downLive && r.g[r.down] <= a)) return { level: 'edge', text: '아슬아슬', r };
+    if (spread(r.g, r.burst) < spread(state.g, state.burst)) return { level: 'good', text: '추천', r };
+    return { level: 'ok', text: '무난', r };
+  }
+
+  /* ---------- dom helpers ---------- */
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const gVar = k => `var(--g-${k})`;
+  const tVar = c => `var(--t-${c})`;
+  const targetColor = t => t.kind === 'beast' ? gVar(t.beast) : tVar(t.thread);
+  function targetTitle(t) {
+    if (t.kind === 'beast') return `${BEASTS[t.beast].name} 공격`;
+    const th = THREADS[t.thread];
+    return `${th.name} · ${th.flower}`;
+  }
+  function targetSub(t) {
+    if (t.kind === 'beast') return `흉수 패턴 · ${t.pos}`;
+    return `${BEASTS[THREADS[t.thread].beast].name}의 실 · ${t.pos}`;
+  }
+  function targetShort(t) {
+    if (t.kind === 'beast') return BEASTS[t.beast].name;
+    return THREADS[t.thread].name;
+  }
+
+  /* ---------- header / nav ---------- */
+  function renderDiff() {
+    $('diffSeg').innerHTML = DIFFS.map(([k, label]) =>
+      `<button type="button" data-diff="${k}" aria-pressed="${state.diff === k}">${label}</button>`).join('');
+  }
+  function renderAmt() {
+    const inp = $('amt');
+    if (document.activeElement !== inp) inp.value = amount();
+    $('amtReset').hidden = !(amtKey() in state.over);
+    inp.title = `${PHASE_LABEL[phase()]} · ${DIFFS.find(d => d[0] === state.diff)[1]} 기본값 ${baseAmount()}`;
+  }
+  function renderAmtTable() {
+    const rows = [1, 2, 3].map(p => `<tr><td>${PHASE_LABEL[p]}</td>${DIFFS.map(([k]) => {
+      const cur = k === state.diff && p === phase();
+      return `<td class="n"${cur ? ' style="color: var(--gold); font-weight: 700"' : ''}>${AMOUNTS[k][p - 1]}</td>`;
+    }).join('')}</tr>`).join('');
+    $('amtTable').innerHTML = rows;
+  }
+  const SHORT_NAV = { 'p1-gungi': '1페 <b>궁기</b>', 'p1-hondon': '1페 <b>혼돈</b>', 'p1-doul': '1페 <b>도올</b>', 'p2': '2페 카링', 'p3': '3페 구역' };
+  function renderNav() {
+    const groups = [[1, ['p1-gungi', 'p1-hondon', 'p1-doul']], [2, ['p2']], [3, ['p3']]];
+    $('scenes').innerHTML = groups.map(([p, keys]) =>
+      `<div class="sgroup"><span class="slabel">${PHASE_LABEL[p]}</span>${keys.map(k => {
+        const sc = SCENES[k];
+        const dot = sc.dot ? `<span class="dot" style="--c: ${gVar(sc.dot)}"></span>` : '';
+        return `<button type="button" class="sbtn" data-scene="${k}" aria-current="${state.scene === k}"${sc.dot ? ` style="--c: ${gVar(sc.dot)}"` : ''}>${dot}<span class="l">${sc.nav}</span><span class="s">${SHORT_NAV[k]}</span></button>`;
+      }).join('')}</div>`).join('');
+  }
+
+  /* ---------- triangle gauge ---------- */
+  // A rounded △ like the in-game UI. Each gauge wraps one corner and fills clockwise:
+  // 혼돈 the top corner, 궁기 the bottom-right, 도올 the bottom-left. 500 sits exactly on the corner.
+  // The gauge just behind each one (counter-clockwise, its tail) is the one that drops when it rises.
+  const TRI = { T: [220, 90], R: [342, 301], L: [98, 301] };
+  const TRI_C = [(TRI.T[0] + TRI.R[0] + TRI.L[0]) / 3, (TRI.T[1] + TRI.R[1] + TRI.L[1]) / 3];
+  const TRI_GAUGES = [
+    { k: 'hondon', from: ['L', 'T'], corner: 'T', to: ['T', 'R'], x: 220, anchor: 'middle', y: [18, 49, 66] },
+    { k: 'gungi',  from: ['T', 'R'], corner: 'R', to: ['R', 'L'], x: 342, anchor: 'middle', y: [344, 374, 391] },
+    { k: 'doul',   from: ['R', 'L'], corner: 'L', to: ['L', 'T'], x: 98,  anchor: 'middle', y: [344, 374, 391] }
+  ];
+  const TRI_R = 32;
+  const TRI_GAP = 10;
+  const MINI_ORDER = ['hondon', 'gungi', 'doul'];
+  const f1 = n => Math.round(n * 10) / 10;
+  const pt = q => `${f1(q[0])} ${f1(q[1])}`;
+  const midOf = (a, b) => [(TRI[a][0] + TRI[b][0]) / 2, (TRI[a][1] + TRI[b][1]) / 2];
+  function unit(p, q) {
+    const L = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    return [(q[0] - p[0]) / L, (q[1] - p[1]) / L];
+  }
+  function cornerCurve(c, d1, d2) {
+    return { c1: [c[0] - d1[0] * TRI_R, c[1] - d1[1] * TRI_R], c2: [c[0] + d2[0] * TRI_R, c[1] + d2[1] * TRI_R] };
+  }
+  function gaugeGeom(gd) {
+    const c = TRI[gd.corner];
+    const m1 = midOf(...gd.from), m2 = midOf(...gd.to);
+    const d1 = unit(m1, c), d2 = unit(c, m2);
+    const s = [m1[0] + d1[0] * TRI_GAP, m1[1] + d1[1] * TRI_GAP];
+    const e = [m2[0] - d2[0] * TRI_GAP, m2[1] - d2[1] * TRI_GAP];
+    const { c1, c2 } = cornerCurve(c, d1, d2);
+    const apex = [0.25 * c1[0] + 0.5 * c[0] + 0.25 * c2[0], 0.25 * c1[1] + 0.5 * c[1] + 0.25 * c2[1]];
+    return { d: `M${pt(s)} L${pt(c1)} Q${pt(c)} ${pt(c2)} L${pt(e)}`, e, d2, apex, c };
+  }
+  function framePath() {
+    const order = ['T', 'R', 'L'];
+    let d = '';
+    order.forEach((k, i) => {
+      const prev = order[(i + 2) % 3], next = order[(i + 1) % 3];
+      const { c1, c2 } = cornerCurve(TRI[k], unit(TRI[prev], TRI[k]), unit(TRI[k], TRI[next]));
+      d += `${i ? 'L' : 'M'}${pt(c1)} Q${pt(TRI[k])} ${pt(c2)} `;
+    });
+    return d + 'Z';
+  }
+  function buildGauges() {
+    let h = `<defs><pattern id="tri-hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2" height="5" style="fill: var(--danger)"/></pattern></defs>`;
+    h += `<path class="frame" d="${framePath()}"/>`;
+    const r = Math.hypot(TRI.T[0] - TRI_C[0], TRI.T[1] - TRI_C[1]) * 0.36;
+    h += `<circle class="disc" cx="${f1(TRI_C[0])}" cy="${f1(TRI_C[1])}" r="${f1(r)}"/>`;
+    h += `<text class="center-big" x="${f1(TRI_C[0])}" y="${f1(TRI_C[1] + 2)}">↻</text><text class="center" x="${f1(TRI_C[0])}" y="${f1(TRI_C[1] + 22)}">시계방향</text>`;
+    for (const gd of TRI_GAUGES) {
+      const g = gaugeGeom(gd);
+      const b = BEASTS[gd.k];
+      const u = unit(TRI_C, g.c);
+      const nx = -g.d2[1], ny = g.d2[0];
+      const tip = [g.e[0] + g.d2[0] * 9, g.e[1] + g.d2[1] * 9];
+      const head = `${pt(tip)} ${pt([g.e[0] + nx * 6, g.e[1] + ny * 6])} ${pt([g.e[0] - nx * 6, g.e[1] - ny * 6])}`;
+      h += `<g class="edge" data-k="${gd.k}" style="--c: ${gVar(gd.k)}">
+        <path class="track" d="${g.d}"/>
+        <path class="fill" data-f d="${g.d}" pathLength="1000" stroke-dasharray="500 1000"/>
+        <path class="zone" data-lo d="${g.d}" pathLength="1000" stroke-dasharray="0 1000"/>
+        <path class="zone" data-hi d="${g.d}" pathLength="1000" stroke-dasharray="0 1000"/>
+        <line class="tick" x1="${f1(g.apex[0] - u[0] * 13)}" y1="${f1(g.apex[1] - u[1] * 13)}" x2="${f1(g.apex[0] + u[0] * 13)}" y2="${f1(g.apex[1] + u[1] * 13)}"/>
+        <polygon class="head" points="${head}"/>
+        <text class="nm" x="${gd.x}" y="${gd.y[0]}" text-anchor="${gd.anchor}">${b.name}<tspan class="ss"> ${b.season} · ${b.gaugeName.replace(' 게이지', '')}</tspan></text>
+        <text class="val" x="${gd.x}" y="${gd.y[1]}" text-anchor="${gd.anchor}"><tspan data-v>500</tspan><tspan class="dl" data-d dx="6"></tspan></text>
+        <text class="left" x="${gd.x}" y="${gd.y[2]}" text-anchor="${gd.anchor}" data-l></text>
+      </g>`;
+    }
+    for (const [a, b2] of [['T', 'R'], ['R', 'L'], ['L', 'T']]) {
+      const m = midOf(a, b2);
+      h += `<circle class="knot" cx="${f1(m[0])}" cy="${f1(m[1])}" r="6"/>`;
+    }
+    $('tri').innerHTML = h;
+    const where = { hondon: '위', gungi: '오른쪽', doul: '왼쪽' };
+    $('glist').innerHTML = MINI_ORDER.map(k => `<div class="grow" data-k="${k}" style="--c: ${gVar(k)}">
+      <span class="gname"><i></i>${BEASTS[k].name}<small>${where[k]}</small></span>
+      <b class="gv" data-gv>500</b>
+      <span class="gleft" data-gl></span><em class="gd" data-gd></em></div>`).join('');
+    $('miniIn').innerHTML = MINI_ORDER.map(k => `<span class="mchip" data-k="${k}" style="--c: ${gVar(k)}"><i></i>${BEASTS[k].name} <b>500</b></span>`).join('') +
+      `<span class="mmind">정신력 <b id="miniMind">1000</b></span><button type="button" class="btn" id="miniUndo">되돌리기</button>`;
+  }
+  function renderBoard() {
+    const a = amount();
+    const z = Math.min(500, a);
+    const label = [];
+    for (const gd of TRI_GAUGES) {
+      const k = gd.k;
+      const el = document.querySelector(`#tri .edge[data-k="${k}"]`);
+      const v = state.g[k];
+      el.querySelector('[data-v]').textContent = v;
+      el.querySelector('[data-f]').setAttribute('stroke-dasharray', `${v} 1000`);
+      el.querySelector('[data-lo]').setAttribute('stroke-dasharray', `${z} 1000`);
+      el.querySelector('[data-hi]').setAttribute('stroke-dasharray', `0 ${1000 - z} ${z} 1000`);
+      const left = el.querySelector('[data-l]');
+      let st;
+      if (state.burst[k]) {
+        st = 'burst';
+        left.textContent = '터짐 · 이제 안 변해요';
+      } else {
+        st = (v >= 1000 - a || v <= a) ? 'edge' : 'ok';
+        left.textContent = `▲${Math.ceil((1000 - v) / a)} ▼${Math.ceil(v / a)}대 남음`;
+      }
+      el.dataset.state = st;
+      const row = document.querySelector(`.grow[data-k="${k}"]`);
+      row.dataset.state = st;
+      row.querySelector('[data-gv]').textContent = v;
+      row.querySelector('[data-gl]').textContent = left.textContent;
+      const chip = document.querySelector(`.mchip[data-k="${k}"]`);
+      chip.dataset.state = st;
+      chip.querySelector('b').textContent = v;
+      label.push(`${BEASTS[k].name} ${v}${state.burst[k] ? ' 터짐' : ''}`);
+    }
+    $('tri').setAttribute('aria-label', '실 게이지: ' + label.join(', '));
+    const bursts = ORDER.filter(k => state.burst[k]).length;
+    const mind = Math.max(0, MIND_START - MIND_PER_BURST * bursts);
+    $('mindVal').textContent = mind;
+    $('miniMind').textContent = mind;
+    $('mind').classList.toggle('hurt', bursts > 0);
+    $('mind').title = bursts ? `게이지 ${bursts}개 터짐 (−${MIND_PER_BURST * bursts})` : '게이지가 하나 터질 때마다 −350';
+    $('undo').disabled = undoStack.length === 0;
+    $('miniUndo').disabled = undoStack.length === 0;
+  }
+  function restartClass(el, cls) {
+    el.classList.remove(cls);
+    void el.getBoundingClientRect();
+    el.classList.add(cls);
+  }
+  function popDelta(k, text, cls) {
+    const edge = document.querySelector(`#tri .edge[data-k="${k}"]`);
+    if (!edge) return;
+    const d = edge.querySelector('[data-d]');
+    d.textContent = text;
+    d.setAttribute('class', 'dl ' + cls);
+    restartClass(d, 'show');
+    restartClass(edge, 'hl');
+    const em = document.querySelector(`.grow[data-k="${k}"] [data-gd]`);
+    if (em) {
+      em.textContent = text;
+      em.className = 'gd ' + cls;
+      restartClass(em, 'show');
+    }
+  }
+  // On phones the triangle drops its corner labels (they move to the list beside it), so crop to the shape.
+  const phoneMQ = window.matchMedia ? window.matchMedia('(max-width: 600px)') : null;
+  function fitTriangle() {
+    $('tri').setAttribute('viewBox', phoneMQ && phoneMQ.matches ? '72 62 296 266' : '0 0 440 398');
+  }
+  if (phoneMQ) {
+    if (phoneMQ.addEventListener) phoneMQ.addEventListener('change', fitTriangle);
+    else if (phoneMQ.addListener) phoneMQ.addListener(fitTriangle);
+  }
+  fitTriangle();
+
+  /* ---------- stage ---------- */
+  const stage = $('stage');
+  function buildStage() {
+    const sc = scene();
+    const z = $('zones');
+    if (sc.zones) {
+      z.innerHTML = [33.33, 66.67].map(x => `<div class="zone-line" style="left:${x}%"></div>`).join('') +
+        sc.zones.map(zn => `<div class="zone-label" style="left:${zn.at}%; --c: ${gVar(zn.beast)}">${zn.label}<small>${zn.season}</small></div>`).join('');
+    } else {
+      z.innerHTML = `<div class="room-label">${esc(sc.title)}<small>${esc(sc.sub)}</small></div>`;
+    }
+    stage.classList.toggle('dense', sc.targets.length > 4);
+    $('floats').innerHTML = '';
+    $('layer').innerHTML = sc.targets.map((t, i) => {
+      const c = targetColor(t);
+      const key = `<span class="t-key" aria-hidden="true">${i + 1}</span>`;
+      if (t.kind === 'beast') {
+        const b = BEASTS[t.beast];
+        return `<button type="button" class="t t-beast" data-i="${i}" style="--x:${t.x}%; --c:${c}" aria-label="${b.name} 공격에 맞음">
+          <span class="seal">${b.name}</span>${key}<span class="t-under"><span class="t-tag">공격</span><span class="t-prev" data-prev></span></span></button>`;
+      }
+      const th = THREADS[t.thread];
+      const fl = [24, 52, 80].map(y => `<svg class="t-fl" style="top:${y}%" aria-hidden="true"><use href="#${th.sym}"/></svg>`).join('');
+      return `<button type="button" class="t t-thread" data-i="${i}" style="--x:${t.x}%; --c:${c}" aria-label="${th.name}(${BEASTS[th.beast].name})에 맞음">
+        <svg class="t-line" viewBox="0 0 20 100" preserveAspectRatio="none" aria-hidden="true">
+          <path class="halo" d="M10 0 C 3 18, 17 32, 10 50 S 3 82, 10 100"/>
+          <path class="core" d="M10 0 C 3 18, 17 32, 10 50 S 3 82, 10 100"/>
+        </svg>${fl}${key}<span class="t-under"><span class="t-tag">${th.name}</span><span class="t-prev" data-prev></span></span></button>`;
+    }).join('');
+    $('portals').innerHTML = sc.portals.length
+      ? `<span>처치 후 포탈</span>` + sc.portals.map(([k, label]) => `<button type="button" class="btn" data-scene="${k}">${label}</button>`).join('')
+      : `<span>${esc(PHASE_LABEL[sc.phase])} · ${esc(sc.bar || '')}</span>`;
+    paint.invalidate();
+    applyBackground();
+  }
+  function renderStageLevels(judged) {
+    const wide = !stage.classList.contains('dense');
+    document.querySelectorAll('#layer .t').forEach(el => {
+      const j = judged[+el.dataset.i];
+      const r = j.r;
+      el.dataset.level = j.level;
+      const line = (k, sign, live) =>
+        `<span class="${sign === '▲' ? 'up' : 'down'}${live ? '' : ' off'}" style="--cl: ${gVar(k)}">${BEASTS[k].name} ${sign}${amount()}` +
+        (wide && live ? `<span class="to">→${r.g[k]}</span>` : '') + `</span>`;
+      el.querySelector('[data-prev]').innerHTML = line(r.up, '▲', r.upLive) + line(r.down, '▼', r.downLive);
+    });
+  }
+  function flashTarget(i, r) {
+    const el = document.querySelector(`#layer .t[data-i="${i}"]`);
+    const t = scene().targets[i];
+    if (el) {
+      el.classList.remove('flash');
+      void el.offsetWidth;
+      el.classList.add('flash');
+    }
+    const f = document.createElement('div');
+    f.className = 'float';
+    f.style.left = Math.min(88, Math.max(12, t.x)) + '%';
+    f.style.top = t.kind === 'beast' ? '44%' : '36%';
+    f.style.setProperty('--cu', gVar(r.up));
+    f.style.setProperty('--cd', gVar(r.down));
+    let html = '';
+    html += r.upLive ? `<span class="up">${BEASTS[r.up].name} ▲${r.a}</span>` : '';
+    html += r.downLive ? `<span class="down">${BEASTS[r.down].name} ▼${r.a}</span>` : '';
+    if (r.newBursts.length) html += `<span class="boom">${r.newBursts.map(k => BEASTS[k].name).join('·')} 터짐!</span>`;
+    if (!html) html = '<span>변화 없음</span>';
+    f.innerHTML = html;
+    $('floats').appendChild(f);
+    setTimeout(() => f.remove(), 1600);
+    if (r.newBursts.length) {
+      const b = document.createElement('div');
+      b.className = 'boom-flash';
+      $('floats').appendChild(b);
+      setTimeout(() => b.remove(), 950);
+    }
+  }
+
+  /* ---------- hit list ---------- */
+  function threadIcon(c, sym) {
+    return `<svg viewBox="0 0 38 46" aria-hidden="true" style="color:${tVar(c)}">
+      <path d="M19 0 C 13 10, 25 18, 19 26 S 13 40, 19 46" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <use href="#${sym}" x="7" y="12" width="24" height="24"/></svg>`;
+  }
+  function renderCards(judged) {
+    const sc = scene();
+    $('cards').innerHTML = sc.targets.map((t, i) => {
+      const j = judged[i];
+      const r = j.r;
+      const ico = t.kind === 'beast'
+        ? `<span class="c-seal" style="--c:${gVar(t.beast)}">${BEASTS[t.beast].name}</span>`
+        : threadIcon(t.thread, THREADS[t.thread].sym);
+      const upChip = `<span class="chip up${r.upLive ? '' : ' off'}" style="--c:${gVar(r.up)}">${BEASTS[r.up].name} ▲${amount()}</span>`;
+      const downChip = `<span class="chip down${r.downLive ? '' : ' off'}" style="--c:${gVar(r.down)}">${BEASTS[r.down].name} ▼${amount()}</span>`;
+      const after = `맞으면 ${BEASTS[r.up].name} ${state.g[r.up]}→${r.g[r.up]} · ${BEASTS[r.down].name} ${state.g[r.down]}→${r.g[r.down]}`;
+      const x2 = t.kind === 'thread' ? `<button type="button" class="hit2" data-hit="${i}" data-mult="2" title="X자로 겹친 실에 맞으면 2배">X자 ×2</button>` : '';
+      return `<div class="card" data-level="${j.level}">
+        <div class="c-ico">${ico}</div>
+        <div class="c-body">
+          <div class="c-title"><kbd>${i + 1}</kbd>${esc(targetTitle(t))}</div>
+          <div class="c-sub">${esc(targetSub(t))}</div>
+          <div class="fx-row">${upChip}${downChip}</div>
+          <div class="c-after">${after}</div>
+        </div>
+        <div class="c-act">
+          <span class="lvl" data-level="${j.level}">${j.text}</span>
+          <button type="button" class="hit" data-hit="${i}" data-mult="1">맞음</button>${x2}
+        </div>
+      </div>`;
+    }).join('');
+  }
+  function whoMoves(dir, k) {
+    // dir 'down': targets that lower k; dir 'up': targets that raise k
+    return scene().targets.filter(t => {
+      const e = effectOf(t);
+      return dir === 'down' ? e.down === k : e.up === k;
+    });
+  }
+  function hereList(list) {
+    if (!list.length) return '<span class="muted">이 화면에는 없어요</span>';
+    return list.map(t => `<b>${esc(t.pos === '가운데' && t.kind === 'beast' ? targetTitle(t) : `${t.pos} ${targetTitle(t)}`)}</b>`).join(', ');
+  }
+  function renderAdvice() {
+    const live = ORDER.filter(k => !state.burst[k]);
+    const box = $('advice');
+    const bursts = ORDER.filter(k => state.burst[k]);
+    let html = '';
+    if (bursts.length) {
+      html += `<p><span class="k" style="--c: var(--danger)">${bursts.map(k => BEASTS[k].name).join(', ')} 터짐.</span> <span class="muted">터진 게이지는 더 이상 안 변하고, 하나마다 정신력 −350이에요.</span></p>`;
+    }
+    if (live.length === 0) {
+      box.innerHTML = html + '<p class="muted">세 게이지가 모두 터졌어요. 처음부터 눌러서 다시 시작하세요.</p>';
+      return;
+    }
+    if (live.length === 1) {
+      const k = live[0];
+      html += `<p>남은 게이지는 <span class="k" style="--c:${gVar(k)}">${BEASTS[k].name} ${state.g[k]}</span> 하나예요. 올리는 것: ${hereList(whoMoves('up', k))}. 내리는 것: ${hereList(whoMoves('down', k))}.</p>`;
+      box.innerHTML = html;
+      return;
+    }
+    const hi = live.reduce((m, k) => state.g[k] > state.g[m] ? k : m, live[0]);
+    const lo = live.reduce((m, k) => state.g[k] < state.g[m] ? k : m, live[0]);
+    const off = Math.max(state.g[hi] - 500, 500 - state.g[lo]);
+    if (off < 110) {
+      html += `<p>세 게이지가 고르게 있어요. 지금은 어느 걸 맞아도 여유가 있어요.</p>
+        <p class="muted">게이지는 500 가까이 둘수록 안전해요. 맞은 걸 누르면 바뀐 값을 따라가요.</p>`;
+    } else {
+      if (state.g[hi] - 500 >= 110) {
+        const lowerer = BEASTS[Object.keys(BEASTS).find(k => BEASTS[k].lowers === hi)];
+        html += `<p><span class="k" style="--c:${gVar(hi)}">${BEASTS[hi].name} ${state.g[hi]}</span> 가장 높아요. 내리려면 ${lowerer.name} 쪽(${THREADS[lowerer.thread].name})을 맞으세요. 여기서는 ${hereList(whoMoves('down', hi))}.</p>`;
+      }
+      if (500 - state.g[lo] >= 110) {
+        html += `<p><span class="k" style="--c:${gVar(lo)}">${BEASTS[lo].name} ${state.g[lo]}</span> 가장 낮아요. 올리려면 ${BEASTS[lo].name} 쪽(${THREADS[BEASTS[lo].thread].name})을 맞으세요. 여기서는 ${hereList(whoMoves('up', lo))}.</p>`;
+      }
+    }
+    box.innerHTML = html;
+  }
+
+  /* ---------- log & notes ---------- */
+  function renderLog() {
+    const ol = $('log');
+    $('logCount').textContent = state.log.length ? `${state.n}번` : '';
+    if (!state.log.length) {
+      ol.innerHTML = '<li class="empty">아직 맞은 게 없어요. 실이나 흉수를 누르면 여기에 쌓여요.</li>';
+      return;
+    }
+    ol.innerHTML = state.log.map(e => {
+      if (e.type === 'set') {
+        return `<li><span class="n">#${e.n}</span><span><span class="what">값 맞춤</span><span class="res">${ORDER.map(k => `<span class="k" style="--c:${gVar(k)}">${BEASTS[k].name}</span> ${e.g[k]}`).join(' · ')}</span></span></li>`;
+      }
+      const parts = [];
+      if (e.upLive) parts.push(`<span class="k" style="--c:${gVar(e.up)}">${BEASTS[e.up].name}</span> ${e.g[e.up]} ▲${e.a}`);
+      if (e.downLive) parts.push(`<span class="k" style="--c:${gVar(e.down)}">${BEASTS[e.down].name}</span> ${e.g[e.down]} ▼${e.a}`);
+      const boom = e.newBursts && e.newBursts.length ? ` <span class="boom">${e.newBursts.map(k => BEASTS[k].name).join('·')} 터짐</span>` : '';
+      return `<li><span class="n">#${e.n}</span><span><span class="what">${esc(e.label)}${e.mult > 1 ? ' ×2' : ''}</span> <span class="c-sub">${esc(e.where)}</span>${boom}<span class="res">${parts.join(' · ') || '변화 없음'}</span></span></li>`;
+    }).join('');
+  }
+  function renderNotes() {
+    const sc = scene();
+    $('notesTitle').textContent = `${sc.phase === 1 ? sc.title : PHASE_LABEL[sc.phase]} 메모`;
+    $('notes').innerHTML = sc.notes.map(n => `<li>${esc(n)}</li>`).join('');
+  }
+
+  /* ---------- render all ---------- */
+  function renderDynamic() {
+    const judged = scene().targets.map(t => judge(t, 1));
+    renderBoard();
+    renderAmt();
+    renderAmtTable();
+    renderStageLevels(judged);
+    renderCards(judged);
+    renderAdvice();
+    renderLog();
+  }
+  function renderSceneChange() {
+    renderNav();
+    buildStage();
+    renderNotes();
+    renderDynamic();
+  }
+
+  /* ---------- actions ---------- */
+  function hit(i, mult) {
+    const t = scene().targets[i];
+    if (!t) return;
+    pushUndo();
+    const r = simulate(t, mult);
+    state.g = r.g;
+    state.burst = r.burst;
+    state.n += 1;
+    state.log.unshift({
+      n: state.n, type: 'hit', label: targetShort(t), where: `${scene().nav}${t.kind === 'thread' ? ' · ' + t.pos : ''}`,
+      mult, up: r.up, down: r.down, a: r.a, upLive: r.upLive, downLive: r.downLive, g: { ...r.g }, newBursts: r.newBursts
+    });
+    if (state.log.length > 60) state.log.length = 60;
+    save();
+    renderDynamic();
+    flashTarget(i, r);
+    try { if (navigator.vibrate) navigator.vibrate(r.newBursts.length ? [40, 60, 40] : 12); } catch (err) { /* no haptics */ }
+    if (r.upLive) popDelta(r.up, `+${r.a}`, 'up');
+    if (r.downLive) popDelta(r.down, `−${r.a}`, 'down');
+  }
+  function undo() {
+    const prev = undoStack.pop();
+    if (!prev) return;
+    const p = JSON.parse(prev);
+    state.g = p.g; state.burst = p.burst; state.log = p.log; state.n = p.n;
+    save();
+    renderDynamic();
+  }
+  function resetAll() {
+    pushUndo();
+    state.g = { gungi: 500, doul: 500, hondon: 500 };
+    state.burst = { gungi: false, doul: false, hondon: false };
+    state.log = [];
+    state.n = 0;
+    save();
+    renderDynamic();
+  }
+  function openEdit(open) {
+    const f = $('editForm');
+    f.hidden = !open;
+    $('editBtn').setAttribute('aria-expanded', String(open));
+    if (open) {
+      for (const k of ORDER) $('e-' + k).value = state.g[k];
+      $('e-gungi').focus();
+    }
+  }
+
+  document.addEventListener('click', e => {
+    const d = e.target.closest('[data-diff]');
+    if (d) { state.diff = d.dataset.diff; save(); renderDiff(); renderDynamic(); return; }
+    const s = e.target.closest('[data-scene]');
+    if (s) { state.scene = s.dataset.scene; save(); renderSceneChange(); return; }
+    const h = e.target.closest('[data-hit]');
+    if (h) { hit(+h.dataset.hit, +h.dataset.mult || 1); return; }
+    const t = e.target.closest('#layer .t');
+    if (t) { hit(+t.dataset.i, 1); }
+  });
+  $('undo').addEventListener('click', undo);
+  document.addEventListener('click', e => { if (e.target.closest('#miniUndo')) undo(); });
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(([en]) => {
+      $('mini').hidden = en.intersectionRatio > 0.35 || en.boundingClientRect.top > 0;
+    }, { threshold: [0, 0.35, 1] }).observe($('gpanel'));
+  }
+  $('reset').addEventListener('click', resetAll);
+  $('editBtn').addEventListener('click', () => openEdit($('editForm').hidden));
+  $('editCancel').addEventListener('click', () => openEdit(false));
+  $('editForm').addEventListener('submit', e => {
+    e.preventDefault();
+    pushUndo();
+    for (const k of ORDER) {
+      const v = parseInt($('e-' + k).value, 10);
+      if (Number.isFinite(v)) state.g[k] = clamp(v);
+      state.burst[k] = state.g[k] <= 0 || state.g[k] >= 1000;
+    }
+    state.n += 1;
+    state.log.unshift({ n: state.n, type: 'set', g: { ...state.g } });
+    save();
+    openEdit(false);
+    renderDynamic();
+  });
+  $('amt').addEventListener('change', e => {
+    const v = parseInt(e.target.value, 10);
+    if (Number.isFinite(v) && v > 0 && v <= 500 && v !== baseAmount()) state.over[amtKey()] = v;
+    else delete state.over[amtKey()];
+    save();
+    renderDynamic();
+  });
+  $('amtReset').addEventListener('click', () => { delete state.over[amtKey()]; save(); renderDynamic(); });
+  document.addEventListener('keydown', e => {
+    if (e.target.closest('input, textarea, select') || e.metaKey || e.ctrlKey || e.altKey) return;
+    const m = /^Digit([1-9])$/.exec(e.code) || /^Numpad([1-9])$/.exec(e.code);
+    if (m) {
+      const i = +m[1] - 1;
+      const t = scene().targets[i];
+      if (!t) return;
+      e.preventDefault();
+      hit(i, e.shiftKey && t.kind === 'thread' ? 2 : 1);
+    } else if (e.code === 'KeyZ' || e.code === 'Backspace') {
+      e.preventDefault();
+      undo();
+    }
+  });
+
+  /* ---------- backgrounds: your screenshot > bg/ folder > painted ---------- */
+  const BG = (() => {
+    let dbp = null;
+    function open() {
+      if (dbp) return dbp;
+      dbp = new Promise((res, rej) => {
+        try {
+          const r = indexedDB.open('kaling-bg', 1);
+          r.onupgradeneeded = () => r.result.createObjectStore('bg');
+          r.onsuccess = () => res(r.result);
+          r.onerror = () => rej(r.error);
+        } catch (err) { rej(err); }
+      });
+      return dbp;
+    }
+    async function op(mode, fn) {
+      try {
+        const db = await open();
+        return await new Promise(res => {
+          const tx = db.transaction('bg', mode);
+          const req = fn(tx.objectStore('bg'));
+          req.onsuccess = () => res(req.result ?? null);
+          req.onerror = () => res(null);
+        });
+      } catch (err) { return null; }
+    }
+    return {
+      get: k => op('readonly', s => s.get(k)),
+      set: (k, v) => op('readwrite', s => s.put(v, k)),
+      del: k => op('readwrite', s => s.delete(k))
+    };
+  })();
+  const folderCache = {};
+  function probeFolder(key) {
+    if (key in folderCache) return Promise.resolve(folderCache[key]);
+    const exts = ['webp', 'jpg', 'png'];
+    return new Promise(res => {
+      const tryNext = i => {
+        if (i >= exts.length) { folderCache[key] = null; res(null); return; }
+        const url = `bg/${key}.${exts[i]}`;
+        const img = new Image();
+        img.onload = () => { folderCache[key] = url; res(url); };
+        img.onerror = () => tryNext(i + 1);
+        img.src = url;
+      };
+      tryNext(0);
+    });
+  }
+  let objUrl = null;
+  let bgToken = 0;
+  async function applyBackground() {
+    const key = state.scene;
+    const token = ++bgToken;
+    const blob = await BG.get(key);
+    if (token !== bgToken) return;
+    let url = null;
+    let label = '배경: 기본 그림';
+    if (blob) {
+      if (objUrl) URL.revokeObjectURL(objUrl);
+      objUrl = URL.createObjectURL(blob);
+      url = objUrl;
+      label = '배경: 내 스크린샷';
+    } else if (location.protocol !== 'about:') {
+      const f = await probeFolder(key);
+      if (token !== bgToken) return;
+      if (f) { url = f; label = '배경: bg 폴더 이미지'; }
+    }
+    const photo = $('photo');
+    if (url) {
+      photo.style.backgroundImage = `url("${url}")`;
+      photo.hidden = false;
+    } else {
+      photo.style.backgroundImage = '';
+      photo.hidden = true;
+    }
+    $('bgState').textContent = label;
+    $('bgClear').hidden = !blob;
+    fx.setEnabled(!url);
+  }
+  async function setBgFile(file) {
+    if (!file || !/^image\//.test(file.type)) return;
+    await BG.set(state.scene, file);
+    applyBackground();
+  }
+  $('bgFile').addEventListener('change', e => { setBgFile(e.target.files[0]); e.target.value = ''; });
+  $('bgClear').addEventListener('click', async () => { await BG.del(state.scene); applyBackground(); });
+  let dragDepth = 0;
+  stage.addEventListener('dragenter', e => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { dragDepth++; $('dropHint').hidden = false; } });
+  stage.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) $('dropHint').hidden = true; });
+  stage.addEventListener('dragover', e => e.preventDefault());
+  stage.addEventListener('drop', e => {
+    e.preventDefault();
+    dragDepth = 0;
+    $('dropHint').hidden = true;
+    const f = e.dataTransfer?.files?.[0];
+    if (f) setBgFile(f);
+  });
+
+  /* ---------- painted seasons (canvas) ---------- */
+  const FLOOR = 0.74;
+  const PAL = {
+    spring: { sky: ['#2a2141', '#b47c9e', '#f2cfd8'], glow: '255,232,240', mtn: ['#caa0ba', '#987193', '#5d4462'], floor: ['#3a2b39', '#151018'], bloom: ['#ff8fa8', '#ff6d8a', '#ffd0dc', '#ff5268'] },
+    summer: { sky: ['#0b2a38', '#378783', '#cdeedb'], glow: '236,255,240', mtn: ['#72b09f', '#457f73', '#22504a'], floor: ['#1b302d', '#0b1514'], bloom: ['#35d683', '#9fe8b8'] },
+    autumn: { sky: ['#23152b', '#a74f3a', '#f0bd76'], glow: '255,226,178', mtn: ['#c48b62', '#8a5640', '#4b2e27'], floor: ['#35251d', '#140e0b'], bloom: ['#ffae1c', '#ffcf5a', '#f07a26', '#e2551f'] }
+  };
+  function rng(seed) {
+    let s = seed >>> 0;
+    return () => {
+      s = (s + 0x6D2B79F5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function plumFlower(ctx, x, y, r, col) {
+    ctx.fillStyle = col;
+    for (let k = 0; k < 5; k++) {
+      const a = -Math.PI / 2 + k * Math.PI * 2 / 5;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.55, r * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#ffe7a3';
+    ctx.beginPath(); ctx.arc(x, y, r * 0.22, 0, Math.PI * 2); ctx.fill();
+  }
+  function mumFlower(ctx, x, y, r, col) {
+    ctx.fillStyle = col;
+    for (let k = 0; k < 16; k++) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(k * Math.PI / 8);
+      ctx.beginPath();
+      ctx.ellipse(0, -r * 0.55, r * 0.13, r * 0.45, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.fillStyle = '#ffe1a0';
+    ctx.beginPath(); ctx.arc(x, y, r * 0.28, 0, Math.PI * 2); ctx.fill();
+  }
+  function branch(ctx, x, y, ang, len, wid, depth, R, tips) {
+    const x2 = x + Math.cos(ang) * len;
+    const y2 = y + Math.sin(ang) * len;
+    const mx = (x + x2) / 2 + (R() - 0.5) * len * 0.35;
+    const my = (y + y2) / 2 + (R() - 0.5) * len * 0.35;
+    ctx.strokeStyle = '#24161c';
+    ctx.lineWidth = wid;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(mx, my, x2, y2); ctx.stroke();
+    if (R() < 0.6) tips.push([mx, my]);
+    if (depth <= 0 || wid < 1.2) { tips.push([x2, y2]); return; }
+    const n = 2 + (R() < 0.3 ? 1 : 0);
+    for (let i = 0; i < n; i++) branch(ctx, x2, y2, ang + (R() - 0.5) * 1.2, len * (0.6 + R() * 0.2), wid * 0.62, depth - 1, R, tips);
+  }
+  function ridge(ctx, x0, x1, H, base, amp, R, fill) {
+    const w = x1 - x0;
+    const k1 = Math.PI * 2 * (0.8 + R() * 1.0) / w, p1 = R() * 6;
+    const k2 = Math.PI * 2 * (2.2 + R() * 1.8) / w, p2 = R() * 6;
+    const k3 = Math.PI * 2 * (6 + R() * 5) / w, p3 = R() * 6;
+    const fy = H * FLOOR;
+    ctx.beginPath();
+    ctx.moveTo(x0 - 2, fy);
+    for (let x = x0 - 2; x <= x1 + 2; x += 3) {
+      const r = 0.5 * (Math.sin(x * k1 + p1) + 1) * 0.55 + Math.abs(Math.sin(x * k2 + p2)) * 0.37 + Math.sin(x * k3 + p3) * 0.06;
+      ctx.lineTo(x, base - amp * r);
+    }
+    ctx.lineTo(x1 + 2, fy);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+  function paintSeason(ctx, x0, x1, H, season, R) {
+    const P = PAL[season];
+    const w = x1 - x0;
+    const fy = H * FLOOR;
+    const sky = ctx.createLinearGradient(0, 0, 0, fy);
+    sky.addColorStop(0, P.sky[0]); sky.addColorStop(0.58, P.sky[1]); sky.addColorStop(1, P.sky[2]);
+    ctx.fillStyle = sky;
+    ctx.fillRect(x0, 0, w, fy);
+    const sx = x0 + w * (0.3 + R() * 0.4), sy = H * (0.2 + R() * 0.08), sr = Math.min(w, H) * 0.3;
+    const gl = ctx.createRadialGradient(sx, sy, 0, sx, sy, sr);
+    gl.addColorStop(0, `rgba(${P.glow},0.95)`); gl.addColorStop(0.12, `rgba(${P.glow},0.7)`); gl.addColorStop(0.35, `rgba(${P.glow},0.18)`); gl.addColorStop(1, `rgba(${P.glow},0)`);
+    ctx.fillStyle = gl;
+    ctx.fillRect(sx - sr, sy - sr, sr * 2, sr * 2);
+    for (let L = 0; L < 3; L++) {
+      const base = H * (0.52 + L * 0.1);
+      const amp = H * (0.24 - L * 0.055);
+      const g = ctx.createLinearGradient(0, base - amp, 0, fy);
+      g.addColorStop(0, P.mtn[L]);
+      g.addColorStop(1, P.mtn[Math.min(2, L + 1)]);
+      ridge(ctx, x0, x1, H, base, amp, R, g);
+      const mist = ctx.createLinearGradient(0, base - amp * 0.25, 0, base + H * 0.05);
+      mist.addColorStop(0, `rgba(${P.glow},0)`); mist.addColorStop(0.6, `rgba(${P.glow},${0.22 - L * 0.05})`); mist.addColorStop(1, `rgba(${P.glow},0)`);
+      ctx.fillStyle = mist;
+      ctx.fillRect(x0, base - amp * 0.25, w, amp * 0.25 + H * 0.05);
+    }
+    if (season === 'spring') {
+      const tips = [];
+      const len = Math.min(w * 0.2, H * 0.2);
+      branch(ctx, x0 - w * 0.01, H * 0.02, 0.5, len, H * 0.02, 4, R, tips);
+      branch(ctx, x1 + w * 0.01, H * 0.05, Math.PI - 0.55, len * 0.9, H * 0.018, 4, R, tips);
+      for (const [x, y] of tips) {
+        const n = 1 + Math.floor(R() * 2);
+        for (let i = 0; i < n; i++) plumFlower(ctx, x + (R() - 0.5) * H * 0.03, y + (R() - 0.5) * H * 0.03, H * (0.012 + R() * 0.01), P.bloom[Math.floor(R() * P.bloom.length)]);
+      }
+    } else if (season === 'summer') {
+      for (const side of [0, 1]) {
+        const n = 3;
+        for (let i = 0; i < n; i++) {
+          const bx = side ? x1 - w * (0.03 + i * 0.045) - H * 0.02 : x0 + w * (0.02 + i * 0.045);
+          const sw = Math.max(4, H * 0.016);
+          let y = fy + 4;
+          const lean = (R() - 0.5) * 0.12;
+          while (y > -30) {
+            const seg = H * (0.09 + R() * 0.04);
+            const xx = bx + (fy - y) * lean;
+            ctx.fillStyle = (i % 2) ? '#2c6a4c' : '#357c58';
+            ctx.globalAlpha = 0.85 - i * 0.18;
+            ctx.fillRect(xx, y - seg, sw, seg - 2);
+            ctx.fillStyle = '#1b4633';
+            ctx.fillRect(xx - 1, y - 3, sw + 2, 3);
+            if (R() < 0.45) {
+              ctx.fillStyle = '#2f7a52';
+              ctx.beginPath();
+              ctx.ellipse(xx + (side ? -1 : 1) * H * 0.05, y - seg * 0.5, H * 0.055, H * 0.009, (side ? 1 : -1) * (0.3 + R() * 0.4), 0, Math.PI * 2);
+              ctx.fill();
+            }
+            y -= seg;
+          }
+          ctx.globalAlpha = 1;
+        }
+      }
+      ctx.strokeStyle = '#2e7d55';
+      ctx.lineCap = 'round';
+      for (let c = 0; c < 4; c++) {
+        const cx = x0 + w * (0.12 + R() * 0.76);
+        for (let i = 0; i < 6; i++) {
+          const dir = R() < 0.5 ? -1 : 1;
+          const L = H * (0.08 + R() * 0.08);
+          ctx.lineWidth = Math.max(1.5, H * 0.005);
+          ctx.beginPath();
+          ctx.moveTo(cx, fy);
+          ctx.quadraticCurveTo(cx + dir * L * 0.3, fy - L, cx + dir * L * (0.7 + R() * 0.5), fy - L * (0.4 + R() * 0.4));
+          ctx.stroke();
+        }
+      }
+    } else if (season === 'autumn') {
+      const tx = R() < 0.5 ? x0 + w * 0.1 : x1 - w * 0.1;
+      ctx.fillStyle = '#2a1812';
+      ctx.beginPath();
+      ctx.moveTo(tx - H * 0.02, fy);
+      ctx.quadraticCurveTo(tx - H * 0.01, fy - H * 0.25, tx + H * 0.01, fy - H * 0.42);
+      ctx.lineTo(tx + H * 0.025, fy - H * 0.4);
+      ctx.quadraticCurveTo(tx + H * 0.012, fy - H * 0.22, tx + H * 0.025, fy);
+      ctx.fill();
+      for (let i = 0; i < 70; i++) {
+        const a = R() * Math.PI * 2, d = Math.sqrt(R());
+        const fx2 = tx + Math.cos(a) * d * H * 0.2;
+        const fy2 = fy - H * 0.46 + Math.sin(a) * d * H * 0.13;
+        ctx.globalAlpha = 0.55 + R() * 0.35;
+        ctx.fillStyle = P.bloom[2 + Math.floor(R() * 2)];
+        ctx.beginPath(); ctx.arc(fx2, fy2, H * (0.012 + R() * 0.02), 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      for (let c = 0; c < 5; c++) {
+        const cx = x0 + w * (0.08 + R() * 0.84);
+        for (let i = 0; i < 4; i++) {
+          mumFlower(ctx, cx + (R() - 0.5) * H * 0.08, fy - H * (0.01 + R() * 0.04), H * (0.014 + R() * 0.01), P.bloom[Math.floor(R() * 2)]);
+        }
+      }
+    }
+    const fl = ctx.createLinearGradient(0, fy, 0, H);
+    fl.addColorStop(0, P.floor[0]); fl.addColorStop(1, P.floor[1]);
+    ctx.fillStyle = fl;
+    ctx.fillRect(x0, fy, w, H - fy);
+    ctx.fillStyle = `rgba(${P.glow},0.4)`;
+    ctx.fillRect(x0, fy, w, Math.max(1, H * 0.004));
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1;
+    const cx = (x0 + x1) / 2;
+    for (let i = 0; i <= 10; i++) {
+      const x = x0 + w * i / 10;
+      ctx.beginPath(); ctx.moveTo(x, fy); ctx.lineTo(x + (x - cx) * 0.35, H); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.moveTo(x0, fy + (H - fy) * 0.45); ctx.lineTo(x1, fy + (H - fy) * 0.45); ctx.stroke();
+  }
+  const paint = (() => {
+    const cv = $('paint');
+    let key = '';
+    function draw() {
+      const rect = stage.getBoundingClientRect();
+      if (!rect.width) return;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const W = Math.round(rect.width * dpr), H = Math.round(rect.height * dpr);
+      const k = `${state.scene}:${W}x${H}`;
+      if (k === key) return;
+      key = k;
+      cv.width = W; cv.height = H;
+      const ctx = cv.getContext('2d');
+      ctx.clearRect(0, 0, W, H);
+      const secs = scene().sections;
+      secs.forEach((s, i) => {
+        const x0 = W * s.from / 100, x1 = W * s.to / 100;
+        ctx.save();
+        ctx.beginPath(); ctx.rect(x0, 0, x1 - x0, H); ctx.clip();
+        paintSeason(ctx, x0, x1, H, s.season, rng(9173 + i * 131 + state.scene.length * 7));
+        ctx.restore();
+      });
+      for (let i = 1; i < secs.length; i++) {
+        const xs = W * secs[i].from / 100, gw = W * 0.035;
+        const g = ctx.createLinearGradient(xs - gw, 0, xs + gw, 0);
+        g.addColorStop(0, 'rgba(10,12,16,0)'); g.addColorStop(0.5, 'rgba(10,12,16,0.5)'); g.addColorStop(1, 'rgba(10,12,16,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(xs - gw, 0, gw * 2, H);
+      }
+      const v = ctx.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.3, W / 2, H * 0.45, Math.max(W, H) * 0.75);
+      v.addColorStop(0, 'rgba(8,10,14,0)'); v.addColorStop(1, 'rgba(8,10,14,0.55)');
+      ctx.fillStyle = v;
+      ctx.fillRect(0, 0, W, H);
+      fx.reseed(W, H);
+    }
+    return { draw, invalidate() { key = ''; requestAnimationFrame(draw); } };
+  })();
+
+  /* ---------- drifting petals, fireflies and leaves ---------- */
+  const fx = (() => {
+    const cv = $('fx');
+    const ctx = cv.getContext('2d');
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let parts = [], W = 0, H = 0, enabled = true, raf = 0, last = 0;
+    function seasonAt(xPct) {
+      const s = scene().sections.find(sec => xPct >= sec.from && xPct <= sec.to);
+      return s ? s.season : 'spring';
+    }
+    function spawn(p, top) {
+      p.x = Math.random() * W;
+      p.season = seasonAt(p.x / W * 100);
+      p.y = top ? -10 - Math.random() * H * 0.2 : Math.random() * H * FLOOR;
+      p.r = (2 + Math.random() * 3) * (H / 500);
+      p.vy = (8 + Math.random() * 14) * (H / 500);
+      p.ph = Math.random() * 6.28;
+      p.rot = Math.random() * 6.28;
+      p.vr = (Math.random() - 0.5) * 2;
+      if (p.season === 'summer') { p.vy = -(2 + Math.random() * 5) * (H / 500); p.r *= 0.8; if (top) p.y = H * (0.3 + Math.random() * 0.5); }
+      const pal = PAL[p.season].bloom;
+      p.col = p.season === 'summer' ? '214,255,150' : pal[Math.floor(Math.random() * pal.length)];
+    }
+    function reseed(w, h) {
+      W = w; H = h;
+      cv.width = w; cv.height = h;
+      const n = Math.max(10, Math.min(36, Math.round(w / 45)));
+      parts = Array.from({ length: n }, () => { const p = {}; spawn(p, false); return p; });
+      if (reduce) frame(0);
+      else start();
+    }
+    function frame(dt) {
+      ctx.clearRect(0, 0, W, H);
+      if (!enabled) return;
+      const t = performance.now() / 1000;
+      for (const p of parts) {
+        if (p.season === 'summer') {
+          p.y += p.vy * dt;
+          p.x += Math.sin(t * 0.8 + p.ph) * 0.3;
+          if (p.y < H * 0.25) p.y = H * FLOOR - 4;
+          const a = 0.35 + 0.35 * Math.sin(t * 2 + p.ph);
+          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 4);
+          g.addColorStop(0, `rgba(${p.col},${a + 0.3})`); g.addColorStop(1, `rgba(${p.col},0)`);
+          ctx.fillStyle = g;
+          ctx.fillRect(p.x - p.r * 4, p.y - p.r * 4, p.r * 8, p.r * 8);
+        } else {
+          p.y += p.vy * dt;
+          p.x += Math.sin(t * 0.9 + p.ph) * 0.5 * (H / 500);
+          p.rot += p.vr * dt;
+          if (p.y > H * FLOOR + 6) spawn(p, true);
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot);
+          ctx.globalAlpha = 0.85;
+          ctx.fillStyle = p.col;
+          ctx.beginPath();
+          if (p.season === 'autumn') {
+            ctx.moveTo(0, -p.r * 1.6); ctx.lineTo(p.r, 0); ctx.lineTo(0, p.r * 1.6); ctx.lineTo(-p.r, 0); ctx.closePath();
+          } else {
+            ctx.ellipse(0, 0, p.r * 1.25, p.r * 0.75, 0, 0, Math.PI * 2);
+          }
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+    function loop(now) {
+      const dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
+      last = now;
+      frame(dt);
+      raf = requestAnimationFrame(loop);
+    }
+    function start() { if (reduce || raf || !enabled || document.hidden) return; last = 0; raf = requestAnimationFrame(loop); }
+    function stop() { if (raf) cancelAnimationFrame(raf); raf = 0; }
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); else start(); });
+    return {
+      reseed,
+      setEnabled(on) {
+        enabled = on;
+        cv.hidden = !on;
+        $('paint').hidden = !on;
+        if (on) { if (reduce) frame(0); else start(); } else { stop(); ctx.clearRect(0, 0, W, H); }
+      }
+    };
+  })();
+
+  if ('ResizeObserver' in window) new ResizeObserver(() => paint.draw()).observe(stage);
+  else window.addEventListener('resize', () => paint.draw());
+
+  /* ---------- boot ---------- */
+  load();
+  renderDiff();
+  buildGauges();
+  renderSceneChange();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => paint.draw());
+})();
+</script>
+</body>
+</html>
