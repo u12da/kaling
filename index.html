@@ -2282,11 +2282,10 @@ footer a { color: var(--paper); }
       const ts = scene().targets;
       const busy = new Set(hazards.map(h => h.i));
       if (t >= nextThread) {
+        // every thread on the screen comes down at once (both sides in a room, all lanes in 2·3페)
         const lanes = ts.map((tg, i) => i).filter(i => ts[i].kind === 'thread' && !busy.has(i));
-        lanes.sort(() => Math.random() - 0.5);
-        const n = lanes.length > 1 && Math.random() < 0.3 ? 2 : 1;
-        lanes.slice(0, n).forEach(i => spawn(i, Math.random() < 0.12 ? 2 : 1));
-        nextThread = t + rand(1.7, 3.2) / speed;
+        lanes.forEach(i => spawn(i, Math.random() < 0.12 ? 2 : 1));
+        nextThread = t + rand(2.8, 4.4) / speed;
       }
       ts.forEach((tg, i) => {
         if (tg.kind !== 'beast' || busy.has(i)) return;
