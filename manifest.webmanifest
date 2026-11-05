@@ -1,0 +1,17 @@
+{
+  "name": "카링 실 게이지",
+  "short_name": "카링 게이지",
+  "description": "메이플스토리 카링 실 게이지 도우미: 실과 흉수에 맞으면 궁기·도올·혼돈 게이지가 어떻게 바뀌는지 보여줘요.",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e1117",
+  "theme_color": "#0e1117",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
