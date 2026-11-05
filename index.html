@@ -821,6 +821,44 @@ h1 {
 .notes { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
 .notes li::marker { color: var(--gold); }
 
+/* ---------- practice questions ---------- */
+.quiz { padding-block: 6px 22px; border-top: 1px solid var(--line); }
+.quiz h2 { font-family: var(--f-display); font-weight: 400; font-size: 22px; margin: 0; }
+.quiz-card {
+  max-width: 680px;
+  margin-top: 10px;
+  padding: 14px;
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.quiz-top { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--paper-dim); }
+.quiz-kind { color: var(--gold); letter-spacing: 0.06em; }
+.quiz-score { font-variant-numeric: tabular-nums; }
+.quiz-q { margin: 8px 0 12px; font-size: 16px; font-weight: 600; line-height: 1.5; }
+.quiz-q .k { color: var(--c); font-weight: 700; }
+.quiz-q svg { width: 20px; height: 20px; vertical-align: -4px; color: var(--c); }
+.quiz-opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.quiz-opt {
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.quiz-opt:hover:not(:disabled) { border-color: var(--paper-dim); }
+.quiz-opt:disabled { cursor: default; }
+.quiz-opt[data-res="right"] { border-color: var(--gold); background: rgba(216, 179, 91, 0.16); }
+.quiz-opt[data-res="wrong"] { border-color: var(--danger); background: rgba(255, 90, 76, 0.12); }
+.quiz-opt .k { color: var(--c); font-weight: 700; }
+.quiz-fb { margin: 10px 0 0; min-height: 1.5em; font-size: 14px; }
+.quiz-fb b { color: var(--gold); }
+.quiz-fb .no { color: var(--danger); font-weight: 700; }
+.quiz-row { display: flex; justify-content: flex-end; margin-top: 10px; }
+@media (max-width: 600px) { .quiz-opts { grid-template-columns: minmax(0, 1fr); } }
+
 /* ---------- cheat sheet ---------- */
 .cheat { padding-block: 10px 26px; border-top: 1px solid var(--line); }
 .cheat-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; padding-top: 18px; }
@@ -1056,6 +1094,20 @@ footer a { color: var(--paper); }
   <div class="panel">
     <h2 id="notesTitle">이 방 메모</h2>
     <ul class="notes" id="notes"></ul>
+  </div>
+</section>
+
+<section class="quiz wrap" aria-labelledby="quizTitle">
+  <div class="cheat-head">
+    <h2 id="quizTitle">연습 문제</h2>
+    <p>색이 헷갈리면 몇 문제만 풀어 보세요. 실 색, 게이지 색, 방마다 실 위치, 지금 뭘 맞아야 하는지가 섞여 나와요.</p>
+  </div>
+  <div class="quiz-card">
+    <div class="quiz-top"><span class="quiz-kind" id="quizKind"></span><span class="quiz-score" id="quizScore"></span></div>
+    <p class="quiz-q" id="quizQ"></p>
+    <div class="quiz-opts" id="quizOpts"></div>
+    <p class="quiz-fb" id="quizFb" aria-live="polite"></p>
+    <div class="quiz-row"><button type="button" class="btn" id="quizNext">다음 문제</button></div>
   </div>
 </section>
 
@@ -2075,6 +2127,126 @@ footer a { color: var(--paper); }
     }
   });
 
+  /* ---------- practice questions ---------- */
+  const quiz = (() => {
+    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+    const shuffle = arr => arr.map(v => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map(x => x[1]);
+    const nm = k => `<span class="k" style="--c: ${gVar(k)}">${BEASTS[k].name}</span>`;
+    const thr = c => `<span class="k" style="--c: ${tVar(c)}">${THREADS[c].name}</span>`;
+    const icon = c => `<svg aria-hidden="true" style="--c: ${tVar(c)}"><use href="#${THREADS[c].sym}"/></svg>`;
+    const fx = (up, down) => `${nm(up)} ▲ · ${nm(down)} ▼`;
+    const tail = k => BEASTS[k].lowers;
+    const lowererOf = k => ORDER.find(x => BEASTS[x].lowers === k);
+    let score = { right: 0, total: 0, streak: 0, best: 0 };
+    try { score.best = parseInt(localStorage.getItem('kaling-quiz-best'), 10) || 0; } catch (e) { /* no storage */ }
+    let cur = null;
+    const makers = [
+      function threadEffect() {
+        const c = pick(Object.keys(THREADS));
+        const up = THREADS[c].beast;
+        const pairs = [];
+        ORDER.forEach(a => ORDER.forEach(b => { if (a !== b) pairs.push([a, b]); }));
+        const wrong = shuffle(pairs.filter(([a, b]) => !(a === up && b === tail(up)))).slice(0, 3);
+        const opts = shuffle([[up, tail(up)], ...wrong]).map(([a, b]) => ({ html: fx(a, b), ok: a === up && b === tail(up) }));
+        return { kind: '실 효과', q: `${icon(c)} ${thr(c)}(${THREADS[c].flower})에 맞으면 어떻게 될까요?`, opts,
+          why: `${THREADS[c].name}은 ${nm(up)}의 실이에요. ${BEASTS[up].name} ▲, 꼬리에 붙은 ${BEASTS[tail(up)].name} ▼.` };
+      },
+      function lowerWhat() {
+        const k = pick(ORDER);
+        const ans = lowererOf(k);
+        const opts = shuffle(ORDER.map(b => ({ html: `${thr(BEASTS[b].thread)} (${THREADS[BEASTS[b].thread].flower})`, ok: b === ans })));
+        return { kind: '내리기', q: `${nm(k)} 게이지를 내리려면 어떤 실을 맞아야 할까요?`, opts,
+          why: `${THREADS[BEASTS[ans].thread].name}은 ${BEASTS[ans].name}의 실이라 ${BEASTS[ans].name} ▲, ${BEASTS[k].name} ▼. 다음 계절 실이 바로 전 계절을 내려요.` };
+      },
+      function raiseWhat() {
+        const k = pick(ORDER);
+        const opts = shuffle(ORDER.map(b => ({ html: `${thr(BEASTS[b].thread)} (${THREADS[BEASTS[b].thread].flower})`, ok: b === k })));
+        return { kind: '올리기', q: `${nm(k)} 게이지를 올리려면 어떤 실을 맞아야 할까요?`, opts,
+          why: `${BEASTS[k].name}의 실은 ${THREADS[BEASTS[k].thread].name}(${THREADS[BEASTS[k].thread].flower})이에요. 맞으면 ${BEASTS[k].name} ▲, ${BEASTS[tail(k)].name} ▼.` };
+      },
+      function colors() {
+        if (Math.random() < 0.5) {
+          const c = pick(Object.keys(THREADS));
+          const ans = THREADS[c].beast;
+          return { kind: '실 색', q: `${icon(c)} ${thr(c)}은 누구의 실일까요?`,
+            opts: shuffle(ORDER.map(k => ({ html: nm(k), ok: k === ans }))),
+            why: `${THREADS[c].name}(${THREADS[c].flower})은 ${BEASTS[ans].season}의 ${BEASTS[ans].name} 실이에요.${c === 'yellow' ? ' 궁기 게이지가 노란색이라 자주 헷갈려요.' : ''}` };
+        }
+        const k = pick(ORDER);
+        const colorName = BEASTS[k].gaugeName.replace(' 게이지', '');
+        return { kind: '게이지 색', q: `게이지 삼각형에서 <span class="k" style="--c: ${gVar(k)}">${colorName}</span> 게이지는 누구일까요?`,
+          opts: shuffle(ORDER.map(x => ({ html: BEASTS[x].name, ok: x === k }))),
+          why: `${colorName} 게이지는 ${BEASTS[k].name}${batchim(BEASTS[k].name) ? '이에요' : '예요'}. 게이지 색은 흉수 색이고, 실 색은 꽃 색이라 서로 달라요.` };
+      },
+      function roomLayout() {
+        const key = pick(['p1-gungi', 'p1-hondon', 'p1-doul', 'p2', 'p3']);
+        const sc = SCENES[key];
+        const threads = sc.targets.filter(t => t.kind === 'thread');
+        const t = pick(threads);
+        const where = key === 'p3' ? t.pos : `${sc.phase === 1 ? sc.title : '2페이즈'} ${t.pos}`;
+        return { kind: '실 위치', q: `${where}에 나오는 실은?`,
+          opts: shuffle(Object.keys(THREADS).map(c => ({ html: `${thr(c)} (${BEASTS[THREADS[c].beast].name})`, ok: c === t.thread }))),
+          why: sc.phase === 1 ? `${sc.title}에는 ${eul(BEASTS[sc.targets.find(x => x.kind === 'beast').beast].name)} 뺀 두 색이 왼쪽부터 봄·여름·가을 순서로 나와요.`
+            : sc.phase === 2 ? '2페이즈는 왼쪽부터 빨강(봄)·초록(여름)·노랑(가을)이에요.' : '3페이즈는 왼쪽부터 궁기(빨강)·혼돈(노랑)·도올(초록) 구역이에요.' };
+      },
+      function bestHit() {
+        for (let tries = 0; tries < 40; tries++) {
+          const key = pick(['p1-gungi', 'p1-hondon', 'p1-doul', 'p2']);
+          const sc = SCENES[key];
+          const a = AMOUNTS.easy[sc.phase - 1];
+          const d1 = Math.round((Math.random() * 600 - 300) / 5) * 5, d2 = Math.round((Math.random() * 600 - 300) / 5) * 5;
+          const g = { gungi: 500 + d1, doul: 500 + d2, hondon: 1500 - (1000 + d1 + d2) };
+          if (ORDER.some(k => g[k] < 150 || g[k] > 850)) continue;
+          const spreadOf = v => ORDER.reduce((n, k) => n + (v[k] - 500) ** 2, 0);
+          const scored = sc.targets.map(t => {
+            const e = effectOf(t);
+            const v = { ...g, [e.up]: g[e.up] + a, [e.down]: g[e.down] - a };
+            return { t, e, v, cost: spreadOf(v) };
+          }).sort((x, y) => x.cost - y.cost);
+          if (scored[1].cost - scored[0].cost < 6000) continue;
+          const best = scored[0];
+          const label = t => t.kind === 'beast' ? `${BEASTS[t.beast].name} 공격` : `${t.pos} ${THREADS[t.thread].name}`;
+          return { kind: '지금 뭘 맞을까', q: `${sc.phase === 1 ? sc.title : '2페이즈'} (이지, 한 번에 ${a}). 지금 ${ORDER.map(k => `${nm(k)} ${g[k]}`).join(' · ')}. 가장 좋은 건?`,
+            opts: shuffle(sc.targets.map(t => ({ html: label(t), ok: t === best.t }))),
+            why: `${label(best.t)}을 맞으면 ${BEASTS[best.e.up].name} ${g[best.e.up]}→${best.v[best.e.up]}, ${BEASTS[best.e.down].name} ${g[best.e.down]}→${best.v[best.e.down]}로 500에 가장 가까워져요.` };
+        }
+        return makers[0]();
+      }
+    ];
+    function renderScore() {
+      $('quizScore').textContent = score.total ? `맞힘 ${score.right}/${score.total} · 연속 ${score.streak} · 최고 연속 ${score.best}` : (score.best ? `최고 연속 ${score.best}` : '');
+    }
+    function next() {
+      cur = pick(makers)();
+      $('quizKind').textContent = cur.kind;
+      $('quizQ').innerHTML = cur.q;
+      $('quizOpts').innerHTML = cur.opts.map((o, i) => `<button type="button" class="quiz-opt" data-qi="${i}">${o.html}</button>`).join('');
+      $('quizFb').innerHTML = '';
+      renderScore();
+    }
+    function answer(i) {
+      if (!cur || cur.answered) return;
+      cur.answered = true;
+      const ok = cur.opts[i].ok;
+      score.total += 1;
+      if (ok) { score.right += 1; score.streak += 1; } else score.streak = 0;
+      if (score.streak > score.best) {
+        score.best = score.streak;
+        try { localStorage.setItem('kaling-quiz-best', String(score.best)); } catch (e) { /* no storage */ }
+      }
+      document.querySelectorAll('#quizOpts .quiz-opt').forEach((b, j) => {
+        b.disabled = true;
+        if (cur.opts[j].ok) b.dataset.res = 'right';
+        else if (j === i) b.dataset.res = 'wrong';
+      });
+      $('quizFb').innerHTML = (ok ? '<b>정답!</b> ' : '<span class="no">아쉬워요.</span> ') + cur.why;
+      renderScore();
+    }
+    $('quizOpts').addEventListener('click', e => { const b = e.target.closest('[data-qi]'); if (b) answer(+b.dataset.qi); });
+    $('quizNext').addEventListener('click', next);
+    return { next };
+  })();
+
   /* ---------- 실전 연습: threads drop on a timer, beasts keep attacking, you move ---------- */
   const sim = (() => {
     const LEN = 60;
@@ -2646,6 +2818,7 @@ footer a { color: var(--paper); }
   /* ---------- boot ---------- */
   load();
   $('goalSel').value = state.goal;
+  quiz.next();
   renderDiff();
   buildGauges();
   renderSceneChange();
