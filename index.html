@@ -192,7 +192,10 @@ h1 {
 .tri path { fill: none; stroke-linejoin: round; }
 .tri .frame { stroke: var(--line); stroke-width: 28; }
 .tri .track { stroke: var(--ink); stroke-width: 18; }
-.tri .fill { stroke: var(--c); stroke-width: 18; transition: stroke-dasharray 0.45s cubic-bezier(.2,.8,.2,1); }
+.tri .fill { stroke: var(--c); stroke-width: 18; transition: stroke-dasharray 0.45s cubic-bezier(.2,.8,.2,1); filter: drop-shadow(0 0 5px var(--c)); }
+.tri .gloss { stroke: #fff; stroke-width: 4; opacity: 0.35; transition: stroke-dasharray 0.45s cubic-bezier(.2,.8,.2,1); pointer-events: none; }
+.tri .track { filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.06)); }
+.tri .edge[data-state="burst"] .gloss { opacity: 0; }
 .tri .zone { stroke: url(#tri-hatch); stroke-width: 18; }
 .tri .tick { stroke: var(--paper); stroke-width: 2.5; opacity: 0.75; }
 .tri .head { fill: var(--paper-dim); }
@@ -374,6 +377,10 @@ h1 {
   height: 100%;
 }
 .stage .photo { background-size: cover; background-position: center; }
+.stage #gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.stage.webgl .t-line, .stage.webgl .t-fl { display: none; }
+.stage.webgl .seal { background: transparent; border-color: transparent; box-shadow: none; color: transparent; }
+.stage.webgl .hz-thread::before, .stage.webgl .hz-thread::after, .stage.webgl .hz-fl, .stage.webgl .hz-beast { opacity: 0; }
 .stage .photo::after {
   content: "";
   position: absolute;
@@ -958,7 +965,7 @@ footer a { color: var(--paper); }
   .sim-speed .lbl { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .tri .fill { transition: none; }
+  .tri .fill, .tri .gloss { transition: none; }
   .float, .t.flash::after, .boom-flash, .tri .dl.show, .tri .edge.hl .fill { animation-duration: 0.01s; }
   .t[data-next="1"] .t-tag { animation: none; }
   .hz-thread::before, .hz-beast { animation: none; }
@@ -1069,6 +1076,7 @@ footer a { color: var(--paper); }
     <div class="stage-bar">
       <div class="portals" id="portals"></div>
       <div class="bg-ctl">
+        <button type="button" class="btn" id="btn3d" hidden aria-pressed="true" title="휴대폰이 느리면 꺼 주세요">3D 켜짐</button>
         <button type="button" class="btn" id="wakeBtn" hidden aria-pressed="false">화면 켜두기</button>
         <span id="bgState">배경: 기본 그림</span>
         <label class="btn" for="bgFile">실제 배경 넣기</label>
@@ -1600,6 +1608,7 @@ footer a { color: var(--paper); }
       h += `<g class="edge" data-k="${gd.k}" style="--c: ${gVar(gd.k)}">
         <path class="track" d="${g.d}"/>
         <path class="fill" data-f d="${g.d}" pathLength="1000" stroke-dasharray="500 1000"/>
+        <path class="gloss" data-gl2 d="${g.d}" pathLength="1000" stroke-dasharray="500 1000"/>
         <path class="zone" data-lo d="${g.d}" pathLength="1000" stroke-dasharray="0 1000"/>
         <path class="zone" data-hi d="${g.d}" pathLength="1000" stroke-dasharray="0 1000"/>
         <line class="tick" x1="${f1(g.apex[0] - u[0] * 13)}" y1="${f1(g.apex[1] - u[1] * 13)}" x2="${f1(g.apex[0] + u[0] * 13)}" y2="${f1(g.apex[1] + u[1] * 13)}"/>
@@ -1632,6 +1641,7 @@ footer a { color: var(--paper); }
       const v = state.g[k];
       el.querySelector('[data-v]').textContent = v;
       el.querySelector('[data-f]').setAttribute('stroke-dasharray', `${v} 1000`);
+      el.querySelector('[data-gl2]').setAttribute('stroke-dasharray', `${v} 1000`);
       el.querySelector('[data-lo]').setAttribute('stroke-dasharray', `${z} 1000`);
       el.querySelector('[data-hi]').setAttribute('stroke-dasharray', `0 ${1000 - z} ${z} 1000`);
       const left = el.querySelector('[data-l]');
@@ -1727,6 +1737,7 @@ footer a { color: var(--paper); }
       ? `<span>처치 후 포탈</span>` + sc.portals.map(([k, label]) => `<button type="button" class="btn" data-scene="${k}">${label}</button>`).join('')
       : `<span>${esc(PHASE_LABEL[sc.phase])} · ${esc(sc.bar || '')}</span>`;
     paint.invalidate();
+    if (stage3d) stage3d.rebuildSoon();
     applyBackground();
   }
   function renderStageLevels(judged, next) {
@@ -1967,6 +1978,7 @@ footer a { color: var(--paper); }
     save();
     renderDynamic();
     flashTarget(i, r);
+    if (stage3d && stage.classList.contains('webgl')) stage3d.hitFx(i, r);
     try { if (navigator.vibrate) navigator.vibrate(r.newBursts.length ? [40, 60, 40] : 12); } catch (err) { /* no haptics */ }
     if (r.upLive) popDelta(r.up, `+${r.a}`, 'up');
     if (r.downLive) popDelta(r.down, `−${r.a}`, 'down');
@@ -2269,12 +2281,14 @@ footer a { color: var(--paper); }
         el.style.setProperty('--c', tVar(tg.thread));
         el.innerHTML = [22, 50, 78].map(y => `<svg class="hz-fl" style="top:${y}%"><use href="#${th.sym}"/></svg>`).join('') + (mult > 1 ? '<span class="hz-x">X ×2</span>' : '');
         hazards.push({ i, x: tg.x, half: 4.2, t0: t, warn: 1.25 / speed, strike: 0.4, mult, el, done: false });
+        if (stage3d) stage3d.hazard(i, 'warn', mult);
       } else {
         el.className = 'hz hz-beast';
         el.style.left = tg.x + '%';
         el.style.width = (stage.classList.contains('dense') ? 13 : 17) + '%';
         el.style.setProperty('--c', gVar(tg.beast));
         hazards.push({ i, x: tg.x, half: stage.classList.contains('dense') ? 6.5 : 8.5, t0: t, warn: 1.1 / speed, strike: 0.35, mult: 1, el, done: false });
+        if (stage3d) stage3d.hazard(i, 'warn', 1);
       }
       layer.appendChild(el);
     }
@@ -2303,12 +2317,14 @@ footer a { color: var(--paper); }
       else if (goX != null) { const d = goX - px; px += Math.sign(d) * Math.min(Math.abs(d), v); if (Math.abs(d) < 0.2) goX = null; }
       px = Math.max(3, Math.min(97, px));
       meEl.style.left = px + '%';
+      if (stage3d) stage3d.setPlayer(px);
       schedule();
       hazards = hazards.filter(h => {
         const age = t - h.t0;
         if (age >= h.warn && !h.done) {
           h.done = true;
           h.el.classList.add('strike');
+          if (stage3d) stage3d.hazard(h.i, 'strike', h.mult);
           if (Math.abs(px - h.x) <= h.half) {
             const kind = scene().targets[h.i].kind;
             stats[kind] += 1;
@@ -2318,7 +2334,7 @@ footer a { color: var(--paper); }
             setTimeout(() => meEl && meEl.classList.remove('ouch'), 260);
           }
         }
-        if (age > h.warn + h.strike) { h.el.remove(); return false; }
+        if (age > h.warn + h.strike) { h.el.remove(); if (stage3d) stage3d.hazard(h.i, 'idle', 1); return false; }
         return true;
       });
       const left = Math.max(0, Math.ceil(LEN - t));
@@ -2349,6 +2365,7 @@ footer a { color: var(--paper); }
       cancelAnimationFrame(raf);
       raf = 0;
       hazards.forEach(h => h.el.remove());
+      if (stage3d) { stage3d.resetHazards(); stage3d.setPlayer(null); }
       hazards = [];
       if (meEl) meEl.remove();
       meEl = null;
@@ -2477,7 +2494,8 @@ footer a { color: var(--paper); }
     }
     $('bgState').textContent = label;
     $('bgClear').hidden = !blob;
-    fx.setEnabled(!url);
+    bgPhoto = !!url;
+    syncVisualMode();
   }
   async function setBgFile(file) {
     if (!file || !/^image\//.test(file.type)) return;
@@ -2571,31 +2589,10 @@ footer a { color: var(--paper); }
     ctx.fillStyle = fill;
     ctx.fill();
   }
-  function paintSeason(ctx, x0, x1, H, season, R) {
+  // trees, branches, bamboo and flowers for one season; shared by the 2D painting and the 3D billboards
+  function drawFlora(ctx, x0, x1, H, season, R, fy) {
     const P = PAL[season];
     const w = x1 - x0;
-    const fy = H * FLOOR;
-    const sky = ctx.createLinearGradient(0, 0, 0, fy);
-    sky.addColorStop(0, P.sky[0]); sky.addColorStop(0.58, P.sky[1]); sky.addColorStop(1, P.sky[2]);
-    ctx.fillStyle = sky;
-    ctx.fillRect(x0, 0, w, fy);
-    const sx = x0 + w * (0.3 + R() * 0.4), sy = H * (0.2 + R() * 0.08), sr = Math.min(w, H) * 0.3;
-    const gl = ctx.createRadialGradient(sx, sy, 0, sx, sy, sr);
-    gl.addColorStop(0, `rgba(${P.glow},0.95)`); gl.addColorStop(0.12, `rgba(${P.glow},0.7)`); gl.addColorStop(0.35, `rgba(${P.glow},0.18)`); gl.addColorStop(1, `rgba(${P.glow},0)`);
-    ctx.fillStyle = gl;
-    ctx.fillRect(sx - sr, sy - sr, sr * 2, sr * 2);
-    for (let L = 0; L < 3; L++) {
-      const base = H * (0.52 + L * 0.1);
-      const amp = H * (0.24 - L * 0.055);
-      const g = ctx.createLinearGradient(0, base - amp, 0, fy);
-      g.addColorStop(0, P.mtn[L]);
-      g.addColorStop(1, P.mtn[Math.min(2, L + 1)]);
-      ridge(ctx, x0, x1, H, base, amp, R, g);
-      const mist = ctx.createLinearGradient(0, base - amp * 0.25, 0, base + H * 0.05);
-      mist.addColorStop(0, `rgba(${P.glow},0)`); mist.addColorStop(0.6, `rgba(${P.glow},${0.22 - L * 0.05})`); mist.addColorStop(1, `rgba(${P.glow},0)`);
-      ctx.fillStyle = mist;
-      ctx.fillRect(x0, base - amp * 0.25, w, amp * 0.25 + H * 0.05);
-    }
     if (season === 'spring') {
       const tips = [];
       const len = Math.min(w * 0.2, H * 0.2);
@@ -2671,6 +2668,33 @@ footer a { color: var(--paper); }
         }
       }
     }
+  }
+  function paintSeason(ctx, x0, x1, H, season, R) {
+    const P = PAL[season];
+    const w = x1 - x0;
+    const fy = H * FLOOR;
+    const sky = ctx.createLinearGradient(0, 0, 0, fy);
+    sky.addColorStop(0, P.sky[0]); sky.addColorStop(0.58, P.sky[1]); sky.addColorStop(1, P.sky[2]);
+    ctx.fillStyle = sky;
+    ctx.fillRect(x0, 0, w, fy);
+    const sx = x0 + w * (0.3 + R() * 0.4), sy = H * (0.2 + R() * 0.08), sr = Math.min(w, H) * 0.3;
+    const gl = ctx.createRadialGradient(sx, sy, 0, sx, sy, sr);
+    gl.addColorStop(0, `rgba(${P.glow},0.95)`); gl.addColorStop(0.12, `rgba(${P.glow},0.7)`); gl.addColorStop(0.35, `rgba(${P.glow},0.18)`); gl.addColorStop(1, `rgba(${P.glow},0)`);
+    ctx.fillStyle = gl;
+    ctx.fillRect(sx - sr, sy - sr, sr * 2, sr * 2);
+    for (let L = 0; L < 3; L++) {
+      const base = H * (0.52 + L * 0.1);
+      const amp = H * (0.24 - L * 0.055);
+      const g = ctx.createLinearGradient(0, base - amp, 0, fy);
+      g.addColorStop(0, P.mtn[L]);
+      g.addColorStop(1, P.mtn[Math.min(2, L + 1)]);
+      ridge(ctx, x0, x1, H, base, amp, R, g);
+      const mist = ctx.createLinearGradient(0, base - amp * 0.25, 0, base + H * 0.05);
+      mist.addColorStop(0, `rgba(${P.glow},0)`); mist.addColorStop(0.6, `rgba(${P.glow},${0.22 - L * 0.05})`); mist.addColorStop(1, `rgba(${P.glow},0)`);
+      ctx.fillStyle = mist;
+      ctx.fillRect(x0, base - amp * 0.25, w, amp * 0.25 + H * 0.05);
+    }
+    drawFlora(ctx, x0, x1, H, season, R, fy);
     const fl = ctx.createLinearGradient(0, fy, 0, H);
     fl.addColorStop(0, P.floor[0]); fl.addColorStop(1, P.floor[1]);
     ctx.fillStyle = fl;
@@ -2811,8 +2835,586 @@ footer a { color: var(--paper); }
     };
   })();
 
-  if ('ResizeObserver' in window) new ResizeObserver(() => paint.draw()).observe(stage);
-  else window.addEventListener('resize', () => paint.draw());
+  /* ---------- 3D stage (three.js) ----------
+     The camera looks straight down the z axis so every point on the z = 0 "action plane" lands on the
+     same screen spot as the DOM targets above it: threads, beasts and the player line up with the
+     clickable buttons, tags and previews, while the floor, mountains, sky and particles get real depth. */
+  let stage3d = null;
+  let bgPhoto = false;
+  const PREF_3D = 'kaling-3d';
+  function want3d() { try { return localStorage.getItem(PREF_3D) !== 'off'; } catch (e) { return true; } }
+  function syncVisualMode() {
+    const use3d = !!(stage3d && want3d() && !bgPhoto);
+    stage.classList.toggle('webgl', use3d);
+    if (stage3d) stage3d.enable(use3d);
+    fx.setEnabled(!bgPhoto && !use3d);
+    $('paint').hidden = bgPhoto || use3d;
+    const b = $('btn3d');
+    if (b) {
+      b.hidden = !stage3d;
+      b.setAttribute('aria-pressed', String(use3d));
+      b.textContent = use3d ? '3D 켜짐' : '3D 꺼짐';
+    }
+  }
+  function loadThree() {
+    return new Promise(res => {
+      if (window.THREE) { res(true); return; }
+      const srcs = ['vendor/three.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'];
+      const tryNext = k => {
+        if (k >= srcs.length) { res(false); return; }
+        const el = document.createElement('script');
+        el.src = srcs[k];
+        el.onload = () => res(!!window.THREE);
+        el.onerror = () => { el.remove(); tryNext(k + 1); };
+        document.head.appendChild(el);
+      };
+      tryNext(0);
+    });
+  }
+
+  function makeStage3D() {
+    const T = window.THREE;
+    const canvas = document.createElement('canvas');
+    canvas.id = 'gl';
+    canvas.setAttribute('aria-hidden', 'true');
+    let renderer;
+    try {
+      renderer = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    } catch (err) { return null; }
+    if (!renderer.getContext()) return null;
+    $('paint').after(canvas);
+    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const css = getComputedStyle(document.documentElement);
+    const cssColor = name => new T.Color(css.getPropertyValue(name).trim() || '#ffffff');
+    const GAUGE = k => cssColor('--g-' + k);
+    const THREAD = c => cssColor('--t-' + c);
+
+    const FOV = 38, D = 10;
+    const tanH = Math.tan(FOV / 2 * Math.PI / 180);
+    const CY = (2 * FLOOR - 1) * D * tanH;
+    const sceneT = new T.Scene();
+    const camera = new T.PerspectiveCamera(FOV, 16 / 9, 0.1, 500);
+    camera.position.set(0, CY, D);
+    camera.lookAt(0, CY, 0);
+    let aspect = 16 / 9;
+    const worldAt = (xf, yf, z) => [(2 * xf - 1) * (D - z) * tanH * aspect, CY + (1 - 2 * yf) * (D - z) * tanH];
+
+    /* shared textures, made once */
+    function canvasTex(w, h, draw) {
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      draw(c.getContext('2d'), w, h);
+      const tex = new T.CanvasTexture(c);
+      tex.generateMipmaps = false;
+      tex.minFilter = T.LinearFilter;
+      return tex;
+    }
+    const glowTex = canvasTex(128, 128, (g, w, h) => {
+      const r = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+      r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.25, 'rgba(255,255,255,0.55)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = r; g.fillRect(0, 0, w, h);
+    });
+    const ringTex = canvasTex(128, 128, (g, w, h) => {
+      const r = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+      r.addColorStop(0, 'rgba(255,255,255,0)'); r.addColorStop(0.62, 'rgba(255,255,255,0.05)'); r.addColorStop(0.8, 'rgba(255,255,255,0.9)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = r; g.fillRect(0, 0, w, h);
+    });
+    const beamTex = canvasTex(64, 8, (g, w, h) => {
+      const r = g.createLinearGradient(0, 0, w, 0);
+      r.addColorStop(0, 'rgba(255,255,255,0)'); r.addColorStop(0.5, 'rgba(255,255,255,1)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = r; g.fillRect(0, 0, w, h);
+    });
+    const mistTex = canvasTex(8, 64, (g, w, h) => {
+      const r = g.createLinearGradient(0, 0, 0, h);
+      r.addColorStop(0, 'rgba(255,255,255,0)'); r.addColorStop(0.55, 'rgba(255,255,255,1)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = r; g.fillRect(0, 0, w, h);
+    });
+    const petalTex = canvasTex(64, 64, (g, w, h) => {
+      g.translate(w / 2, h / 2); g.rotate(0.6);
+      const r = g.createRadialGradient(0, 0, 0, 0, 0, w * 0.42);
+      r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.7, 'rgba(255,255,255,0.9)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = r; g.beginPath(); g.ellipse(0, 0, w * 0.42, w * 0.24, 0, 0, Math.PI * 2); g.fill();
+    });
+    const tileTex = (() => {
+      const tex = canvasTex(256, 256, (g, w, h) => {
+        g.fillStyle = '#6b6672'; g.fillRect(0, 0, w, h);
+        const R = rng(77);
+        for (let i = 0; i < 1400; i++) { g.fillStyle = `rgba(${R() < 0.5 ? '255,255,255' : '0,0,0'},${0.03 + R() * 0.05})`; g.fillRect(R() * w, R() * h, 2, 2); }
+        g.strokeStyle = 'rgba(20,16,24,0.85)'; g.lineWidth = 6;
+        g.strokeRect(0, 0, w, h);
+        g.beginPath(); g.moveTo(w / 2, 0); g.lineTo(w / 2, h / 2); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.moveTo(w / 4, h / 2); g.lineTo(w / 4, h); g.moveTo(w * 0.75, h / 2); g.lineTo(w * 0.75, h); g.stroke();
+      });
+      tex.wrapS = tex.wrapT = T.RepeatWrapping;
+      tex.generateMipmaps = true;
+      tex.minFilter = T.LinearMipmapLinearFilter;
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 1;
+      return tex;
+    })();
+    const flowerTex = {};
+    function flowerTexFor(c) {
+      if (flowerTex[c]) return flowerTex[c];
+      const col = css.getPropertyValue('--t-' + c).trim();
+      flowerTex[c] = canvasTex(128, 128, (g, w, h) => {
+        const glow = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+        glow.addColorStop(0, 'rgba(255,255,255,0.35)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = glow; g.fillRect(0, 0, w, h);
+        if (c === 'red') plumFlower(g, w / 2, h / 2, w * 0.36, col);
+        else if (c === 'yellow') mumFlower(g, w / 2, h / 2, w * 0.4, col);
+        else {
+          g.fillStyle = col;
+          for (const [a, s] of [[0, 1], [2.0, 1], [-2.0, 1], [1.0, 0.75], [-1.0, 0.75]]) {
+            g.save(); g.translate(w / 2, h / 2); g.rotate(a);
+            g.beginPath(); g.ellipse(0, -w * 0.2 * s, w * 0.09 * s, w * 0.22 * s, 0, 0, Math.PI * 2); g.fill(); g.restore();
+          }
+          g.fillStyle = '#f6fff0'; g.beginPath(); g.ellipse(w / 2, h / 2 + w * 0.04, w * 0.08, w * 0.1, 0, 0, Math.PI * 2); g.fill();
+        }
+      });
+      return flowerTex[c];
+    }
+
+    /* per-build objects, thrown away on rebuild */
+    let root = null, trash = [];
+    const keep = o => { trash.push(o); return o; };
+    let lanes = {}, beasts = {}, petals = null, flies = null, playerDisc = null, bursts = [], built = false;
+    const additive = (map, color, opacity) => keep(new T.MeshBasicMaterial({ map, color, transparent: true, opacity, blending: T.AdditiveBlending, depthWrite: false, fog: false }));
+    function clear() {
+      if (root) sceneT.remove(root);
+      trash.forEach(o => o.dispose && o.dispose());
+      trash = []; lanes = {}; beasts = {}; petals = null; flies = null; playerDisc = null; bursts = [];
+      root = null;
+    }
+    function nameTexture(k) {
+      const col = css.getPropertyValue('--g-' + k).trim();
+      return keep(canvasTex(256, 256, (g, w, h) => {
+        const r = g.createRadialGradient(w * 0.38, h * 0.32, 0, w / 2, h / 2, w / 2);
+        r.addColorStop(0, '#323848'); r.addColorStop(0.75, '#0f1117'); r.addColorStop(1, '#07080b');
+        g.fillStyle = r; g.beginPath(); g.arc(w / 2, h / 2, w / 2, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = col; g.globalAlpha = 0.45; g.lineWidth = 4;
+        g.beginPath(); g.arc(w / 2, h / 2, w * 0.4, 0, Math.PI * 2); g.stroke();
+        g.globalAlpha = 1;
+        g.font = `400 ${Math.round(w * 0.34)}px "Song Myung", "Noto Serif KR", serif`;
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.shadowColor = col; g.shadowBlur = 18;
+        g.fillStyle = col;
+        g.fillText(BEASTS[k].name, w / 2, h / 2 + 4);
+      }));
+    }
+    function relRect(el, sr) {
+      const r = el.getBoundingClientRect();
+      return { cx: (r.left + r.width / 2 - sr.left) / sr.width, top: (r.top - sr.top) / sr.height, cy: (r.top + r.height / 2 - sr.top) / sr.height, w: r.width / sr.width };
+    }
+
+    function build() {
+      const sr = stage.getBoundingClientRect();
+      if (!sr.width || !sr.height) return;
+      clear();
+      built = true;
+      aspect = sr.width / sr.height;
+      camera.aspect = aspect;
+      camera.updateProjectionMatrix();
+      renderer.setSize(sr.width, sr.height, false);
+      root = new T.Group();
+      sceneT.add(root);
+      const sc = scene();
+      const secs = sc.sections;
+      const seed = 9173 + state.scene.length * 7;
+
+      /* sky: one big plane that fills the view, coloured per section */
+      const skyZ = -120;
+      const [skyW] = worldAt(1, 0, skyZ);
+      const skyH = 2 * (D - skyZ) * tanH;
+      const cols = i => { const s2 = secs[Math.min(i, secs.length - 1)]; return PAL[s2.season].sky.map(h => new T.Color(h)); };
+      const c0 = cols(0), c1 = cols(1), c2 = cols(2);
+      const skyMat = keep(new T.ShaderMaterial({
+        uniforms: {
+          t0: { value: c0[0] }, m0: { value: c0[1] }, b0: { value: c0[2] },
+          t1: { value: c1[0] }, m1: { value: c1[1] }, b1: { value: c1[2] },
+          t2: { value: c2[0] }, m2: { value: c2[1] }, b2: { value: c2[2] },
+          e1: { value: secs[1] ? secs[1].from / 100 : 2 }, e2: { value: secs[2] ? secs[2].from / 100 : 2 }
+        },
+        vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        fragmentShader: `uniform vec3 t0, m0, b0, t1, m1, b1, t2, m2, b2; uniform float e1, e2; varying vec2 vUv;
+          vec3 grad(vec3 t, vec3 m, vec3 b, float f){ return f < 0.42 ? mix(t, m, f / 0.42) : mix(m, b, clamp((f - 0.42) / 0.16, 0.0, 1.0)); }
+          void main(){ float f = 1.0 - vUv.y; float x = vUv.x;
+            vec3 c = mix(grad(t0, m0, b0, f), grad(t1, m1, b1, f), smoothstep(e1 - 0.015, e1 + 0.015, x));
+            c = mix(c, grad(t2, m2, b2, f), smoothstep(e2 - 0.015, e2 + 0.015, x));
+            gl_FragColor = vec4(c, 1.0); }`,
+        depthWrite: false
+      }));
+      const sky = new T.Mesh(keep(new T.PlaneGeometry(skyW * 2.02, skyH * 1.01)), skyMat);
+      sky.position.set(0, CY, skyZ);
+      root.add(sky);
+
+      const horizon = new T.Color(PAL[secs[0].season].sky[2]);
+      secs.forEach((s2, si) => {
+        const P = PAL[s2.season];
+        const R = rng(seed + si * 131);
+        const xa = s2.from / 100, xb = s2.to / 100;
+        /* moon glow */
+        const mx = xa + (xb - xa) * (0.3 + R() * 0.4), my = 0.2 + R() * 0.08;
+        const [gx, gy] = worldAt(mx, my, -100);
+        const moon = new T.Sprite(keep(new T.SpriteMaterial({ map: glowTex, color: new T.Color(`rgb(${P.glow})`), transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false, fog: false })));
+        const secW = (worldAt(xb, 0, -100)[0] - worldAt(xa, 0, -100)[0]);
+        moon.scale.set(secW * 0.55, secW * 0.55, 1);
+        moon.position.set(gx, gy, -100);
+        root.add(moon);
+        /* three mountain ridges at real depths */
+        [-62, -42, -26].forEach((z, L) => {
+          const baseF = 0.52 + L * 0.1, ampF = 0.24 - L * 0.055;
+          const k1 = 0.8 + R() * 1.0, p1 = R() * 6, k2 = 2.2 + R() * 1.8, p2 = R() * 6, k3 = 6 + R() * 5, p3 = R() * 6;
+          const shape = new T.Shape();
+          const pad = 0.004;
+          const N = 90;
+          let yMax = 0;
+          for (let n = 0; n <= N; n++) {
+            const u = n / N;
+            const xf = xa - pad + (xb - xa + 2 * pad) * u;
+            const r = 0.5 * (Math.sin(u * 6.283 * k1 + p1) + 1) * 0.55 + Math.abs(Math.sin(u * 6.283 * k2 + p2)) * 0.37 + Math.sin(u * 6.283 * k3 + p3) * 0.06;
+            const [wx, wy] = worldAt(xf, baseF - ampF * r, z);
+            yMax = Math.max(yMax, wy);
+            if (n === 0) { shape.moveTo(wx, -3); }
+            shape.lineTo(wx, wy);
+            if (n === N) shape.lineTo(wx, -3);
+          }
+          const geo = keep(new T.ShapeGeometry(shape));
+          const top = new T.Color(P.mtn[L]).lerp(new T.Color(P.sky[2]), [0.32, 0.16, 0.04][L]);
+          const bot = new T.Color(P.mtn[Math.min(2, L + 1)]).lerp(new T.Color(P.sky[2]), [0.4, 0.2, 0.06][L]);
+          const pos = geo.attributes.position;
+          const colArr = new Float32Array(pos.count * 3);
+          const tmp = new T.Color();
+          for (let v = 0; v < pos.count; v++) {
+            tmp.copy(bot).lerp(top, Math.max(0, Math.min(1, pos.getY(v) / Math.max(0.01, yMax))));
+            colArr[v * 3] = tmp.r; colArr[v * 3 + 1] = tmp.g; colArr[v * 3 + 2] = tmp.b;
+          }
+          geo.setAttribute('color', new T.BufferAttribute(colArr, 3));
+          const mesh = new T.Mesh(geo, keep(new T.MeshBasicMaterial({ vertexColors: true, fog: false })));
+          mesh.position.z = z;
+          mesh.userData.parallax = [0.5, 0.3, 0.15][L];
+          mesh.userData.baseX = 0;
+          root.add(mesh);
+          const [mxa] = worldAt(xa, 0, z + 0.5), [mxb] = worldAt(xb, 0, z + 0.5);
+          const mist = new T.Mesh(keep(new T.PlaneGeometry(mxb - mxa, Math.max(1, yMax * 0.55))), additive(mistTex, new T.Color(`rgb(${P.glow})`), 0.22 - L * 0.05));
+          mist.position.set((mxa + mxb) / 2, yMax * 0.2, z + 0.5);
+          mist.userData.parallax = mesh.userData.parallax;
+          mist.userData.baseX = mist.position.x;
+          root.add(mist);
+        });
+        /* flora billboard just behind the action plane */
+        const fz = -3.2;
+        const [fxa] = worldAt(xa, 0, fz), [fxb] = worldAt(xb, 0, fz);
+        const fTop = worldAt(0, 0, fz)[1];
+        const fw = fxb - fxa, fh = fTop;
+        const ch = 512, cw = Math.max(128, Math.round(ch * fw / fh));
+        const floraTex = keep(canvasTex(cw, ch, (g, w, h) => drawFlora(g, 0, w, h * 1.1, s2.season, rng(seed + si * 131 + 7), h)));
+        const flora = new T.Mesh(keep(new T.PlaneGeometry(fw, fh)), keep(new T.MeshBasicMaterial({ map: floraTex, transparent: true, depthWrite: false, fog: false })));
+        flora.position.set((fxa + fxb) / 2, fh / 2, fz);
+        flora.userData.parallax = 0.06;
+        flora.userData.baseX = flora.position.x;
+        root.add(flora);
+        /* seasonal fill light on the floor */
+        const tint = new T.PointLight(new T.Color(`rgb(${P.glow})`), 0.7, 26, 2);
+        const [tx] = worldAt((xa + xb) / 2, 0, -6);
+        tint.position.set(tx, 5, -6);
+        root.add(tint);
+      });
+
+      /* receding stone floor */
+      const floorMat = keep(new T.MeshStandardMaterial({ color: new T.Color('#4a4452'), map: tileTex, roughness: 0.82, metalness: 0.12 }));
+      tileTex.repeat.set(300, 180);
+      // stops short of the camera (z = D) so no vertex sits on the eye plane; subdivided for clean depth and fog
+      const floor = new T.Mesh(keep(new T.PlaneGeometry(260, 156, 10, 48)), floorMat);
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.set(0, 0, -72);
+      root.add(floor);
+      sceneT.fog = new T.Fog(horizon.clone().multiplyScalar(0.55), 18, 95);
+      sky.material.fog = false;
+
+      root.add(new T.HemisphereLight(new T.Color('#c8cfe8'), new T.Color('#181420'), 0.55));
+      const moonLight = new T.DirectionalLight(0xffffff, 0.35);
+      moonLight.position.set(3, 9, 7);
+      root.add(moonLight);
+
+      /* threads: glowing silk lines with flowers and a light pool, aligned to the DOM buttons */
+      document.querySelectorAll('#layer .t-thread').forEach(el => {
+        const i = +el.dataset.i;
+        const t = sc.targets[i];
+        const rr = relRect(el, sr);
+        const [X, yTop] = worldAt(rr.cx, rr.top, 0);
+        const color = THREAD(t.thread);
+        const g = new T.Group();
+        const pts = [];
+        const ph = R1() * 6;
+        for (let k = 0; k <= 16; k++) {
+          const u = k / 16;
+          pts.push(new T.Vector3(Math.sin(u * 6.283 * 1.2 + ph) * 0.07, yTop * (1 - u), 0));
+        }
+        const core = new T.Mesh(keep(new T.TubeGeometry(new T.CatmullRomCurve3(pts), 64, 0.024, 6, false)), keep(new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 })));
+        g.add(core);
+        const glow = new T.Mesh(keep(new T.PlaneGeometry(0.6, yTop)), additive(beamTex, color, 0.32));
+        glow.position.set(0, yTop / 2, 0.02);
+        g.add(glow);
+        const flowers = [0.24, 0.52, 0.8].map((f, n) => {
+          const sp = new T.Sprite(keep(new T.SpriteMaterial({ map: flowerTexFor(t.thread), transparent: true, depthWrite: false })));
+          sp.position.set(Math.sin((f) * 6.283 * 1.2 + ph) * 0.07, yTop * (1 - f), 0.05);
+          sp.scale.set(0.46, 0.46, 1);
+          sp.material.rotation = n * 0.9;
+          g.add(sp);
+          return sp;
+        });
+        const pool = new T.Mesh(keep(new T.PlaneGeometry(1.8, 1.1)), additive(glowTex, color, 0.42));
+        pool.rotation.x = -Math.PI / 2;
+        pool.position.set(0, 0.012, 0.2);
+        g.add(pool);
+        const light = new T.PointLight(color, 1.2, 6.5, 2);
+        light.position.set(0, 0.55, 0.6);
+        g.add(light);
+        g.position.set(X, 0, 0);
+        root.add(g);
+        lanes[i] = { g, core, glow, flowers, pool, light, yTop, state: 'idle', t0: 0, ph };
+      });
+
+      /* beasts: metal medallions with their name on the face, standing on the floor */
+      document.querySelectorAll('#layer .t-beast').forEach(el => {
+        const i = +el.dataset.i;
+        const k = sc.targets[i].beast;
+        const rr = relRect(el, sr);
+        const [X, Y] = worldAt(rr.cx, rr.cy, 0);
+        const r = rr.w / 2 * (2 * D * tanH * aspect);
+        const color = GAUGE(k);
+        const g = new T.Group();
+        const disc = new T.Mesh(keep(new T.CylinderGeometry(r * 0.96, r * 0.96, r * 0.26, 64)), keep(new T.MeshStandardMaterial({ color: new T.Color('#1a1e28'), metalness: 0.8, roughness: 0.32 })));
+        disc.rotation.x = Math.PI / 2;
+        g.add(disc);
+        const face = new T.Mesh(keep(new T.CircleGeometry(r * 0.9, 64)), keep(new T.MeshBasicMaterial({ map: nameTexture(k), transparent: true })));
+        face.position.z = r * 0.135;
+        g.add(face);
+        const rim = new T.Mesh(keep(new T.TorusGeometry(r, r * 0.09, 20, 90)), keep(new T.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.55, metalness: 0.5, roughness: 0.28 })));
+        rim.position.z = r * 0.05;
+        g.add(rim);
+        const halo = new T.Sprite(keep(new T.SpriteMaterial({ map: glowTex, color, transparent: true, opacity: 0.5, blending: T.AdditiveBlending, depthWrite: false, fog: false })));
+        halo.scale.set(r * 3.4, r * 3.4, 1);
+        halo.position.z = -0.08;
+        g.add(halo);
+        g.position.set(X, Y, 0);
+        root.add(g);
+        const ring = new T.Mesh(keep(new T.PlaneGeometry(r * 4.4, r * 2.4)), additive(ringTex, color, 0.55));
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.set(X, 0.014, 0.1);
+        root.add(ring);
+        const halfPct = stage.classList.contains('dense') ? 6.5 : 8.5;
+        const Ra = halfPct / 100 * (2 * D * tanH * aspect);
+        const dome = new T.Mesh(keep(new T.SphereGeometry(Ra, 40, 20, 0, Math.PI * 2, 0, Math.PI / 2)), keep(new T.MeshBasicMaterial({ color, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide })));
+        dome.position.set(X, 0, 0);
+        dome.scale.set(1, 0.75, 0.55);
+        root.add(dome);
+        const shock = new T.Mesh(keep(new T.PlaneGeometry(Ra * 2.4, Ra * 2.4)), additive(ringTex, color, 0));
+        shock.rotation.x = -Math.PI / 2;
+        shock.position.set(X, 0.02, 0);
+        root.add(shock);
+        const light = new T.PointLight(color, 0.9, 5, 2);
+        light.position.set(X, Y, r + 0.7);
+        root.add(light);
+        beasts[i] = { g, rim, halo, ring, dome, shock, light, baseY: Y, state: 'idle', t0: 0, i };
+      });
+
+      /* the player's light on the floor during 실전 연습 */
+      playerDisc = new T.Mesh(keep(new T.PlaneGeometry(1.3, 0.7)), additive(glowTex, new T.Color('#fff4dc'), 0.7));
+      playerDisc.rotation.x = -Math.PI / 2;
+      playerDisc.position.set(0, 0.016, 0.25);
+      playerDisc.visible = false;
+      root.add(playerDisc);
+
+      /* drifting petals and leaves in real depth, fireflies over summer */
+      const fall = [], fly = [];
+      secs.forEach(s2 => {
+        const n = Math.round(80 * (s2.to - s2.from) / 100);
+        for (let q = 0; q < n; q++) (s2.season === 'summer' ? fly : fall).push(s2);
+      });
+      function makePoints(list, tex, size, blending) {
+        if (!list.length) return null;
+        const pos = new Float32Array(list.length * 3), col = new Float32Array(list.length * 3);
+        const meta = list.map((s2, q) => {
+          const m = { s2, ph: Math.random() * 6.28, v: 0.35 + Math.random() * 0.6 };
+          spawnP(m, pos, q, true);
+          const pal = PAL[s2.season].bloom;
+          const c = new T.Color(s2.season === 'summer' ? '#d6ff96' : pal[Math.floor(Math.random() * pal.length)]);
+          col[q * 3] = c.r; col[q * 3 + 1] = c.g; col[q * 3 + 2] = c.b;
+          return m;
+        });
+        const geo = keep(new T.BufferGeometry());
+        geo.setAttribute('position', new T.BufferAttribute(pos, 3));
+        geo.setAttribute('color', new T.BufferAttribute(col, 3));
+        const mat = keep(new T.PointsMaterial({ size, map: tex, vertexColors: true, transparent: true, depthWrite: false, blending, sizeAttenuation: true, fog: false }));
+        const pts = new T.Points(geo, mat);
+        root.add(pts);
+        return { pts, meta, pos };
+      }
+      petals = makePoints(fall, petalTex, 0.2, T.NormalBlending);
+      flies = makePoints(fly, glowTex, 0.32, T.AdditiveBlending);
+      kick();
+    }
+    function R1() { return Math.random(); }
+    function spawnP(m, pos, q, anywhere) {
+      const z = -22 + Math.random() * 25;
+      const xf = m.s2.from / 100 + Math.random() * (m.s2.to - m.s2.from) / 100;
+      const [x, yTopZ] = worldAt(xf, 0, z);
+      const summer = m.s2.season === 'summer';
+      const y = summer ? 0.3 + Math.random() * (anywhere ? yTopZ * 0.6 : 0.3) : (anywhere ? Math.random() * yTopZ : yTopZ + Math.random() * 2);
+      pos[q * 3] = x; pos[q * 3 + 1] = y; pos[q * 3 + 2] = z;
+      m.top = yTopZ;
+    }
+
+    /* animation */
+    let raf = 0, last = 0, enabled = false, visible = true, mouseX = 0;
+    function animate(now) {
+      const t = now / 1000;
+      const dt = last ? Math.min(0.05, (now - last) / 1000) : 0.016;
+      last = now;
+      if (built) step(t, dt);
+      renderer.render(sceneT, camera);
+      raf = 0;
+      if (enabled && visible && !document.hidden && !reduce) raf = requestAnimationFrame(animate);
+    }
+    function step(t, dt) {
+      root.children.forEach(o => { if (o.userData.parallax) o.position.x = o.userData.baseX + mouseX * o.userData.parallax + Math.sin(t * 0.12) * o.userData.parallax * 0.35; });
+      Object.values(lanes).forEach(L => {
+        const age = t - L.t0;
+        if (L.state === 'strike' && age > 0.7) L.state = 'idle';
+        let glowOp = 0.3 + 0.06 * Math.sin(t * 2.2 + L.ph), width = 1, fs = 0.46, coreOp = 0.9, poolOp = 0.42, li = 1.2;
+        if (L.state === 'warn') {
+          const blink = Math.sin(age * 22) > 0 ? 1 : 0.35;
+          glowOp = 0.18 + 0.4 * blink; coreOp = 0.4 + 0.6 * blink; fs = 0.3 + 0.08 * Math.sin(age * 10); poolOp = 0.25 + 0.4 * blink; li = 0.6 + 1.4 * blink;
+        } else if (L.state === 'strike') {
+          const k = Math.max(0, 1 - age / 0.5);
+          glowOp = 0.45 + 0.55 * k; width = 1 + 1.8 * k; fs = 0.46 + 0.5 * k; poolOp = 0.42 + 0.58 * k; li = 1.2 + 3.5 * k;
+        }
+        L.glow.material.opacity = glowOp;
+        L.glow.scale.x = width;
+        L.core.material.opacity = coreOp;
+        L.pool.material.opacity = poolOp;
+        L.light.intensity = li;
+        L.flowers.forEach((sp, n) => { sp.scale.set(fs, fs, 1); sp.material.rotation += dt * (0.25 + n * 0.08); });
+      });
+      Object.values(beasts).forEach(B => {
+        B.g.position.y = B.baseY + Math.sin(t * 1.6 + B.i) * 0.035;
+        B.g.rotation.y = Math.sin(t * 0.7 + B.i) * 0.32;
+        const age = t - B.t0;
+        if (B.state === 'strike' && age > 0.7) B.state = 'idle';
+        if (B.state === 'warn') {
+          const pulse = 0.5 + 0.5 * Math.sin(age * 16);
+          B.dome.material.opacity = 0.08 + 0.22 * pulse;
+          B.ring.material.opacity = 0.55 + 0.45 * pulse;
+          B.light.intensity = 0.9 + 1.2 * pulse;
+          B.shock.material.opacity = 0;
+        } else if (B.state === 'strike') {
+          const k = Math.max(0, 1 - age / 0.45);
+          B.dome.material.opacity = 0.55 * k;
+          B.shock.material.opacity = k;
+          const s = 0.4 + (1 - k) * 1.2;
+          B.shock.scale.set(s, s, s);
+          B.light.intensity = 0.9 + 3 * k;
+          B.ring.material.opacity = 0.55;
+        } else {
+          B.dome.material.opacity = 0;
+          B.shock.material.opacity = 0;
+          B.ring.material.opacity = 0.42 + 0.12 * Math.sin(t * 1.4 + B.i);
+          B.light.intensity = 0.9;
+        }
+      });
+      if (petals) {
+        petals.meta.forEach((m, q) => {
+          const p = petals.pos;
+          p[q * 3 + 1] -= m.v * dt;
+          p[q * 3] += Math.sin(t * 0.9 + m.ph) * 0.004;
+          if (p[q * 3 + 1] < 0) spawnP(m, p, q, false);
+        });
+        petals.pts.geometry.attributes.position.needsUpdate = true;
+      }
+      if (flies) {
+        flies.meta.forEach((m, q) => {
+          const p = flies.pos;
+          p[q * 3 + 1] += m.v * 0.25 * dt;
+          p[q * 3] += Math.sin(t * 0.8 + m.ph) * 0.006;
+          if (p[q * 3 + 1] > m.top * 0.75) spawnP(m, p, q, false);
+        });
+        flies.pts.geometry.attributes.position.needsUpdate = true;
+        flies.pts.material.opacity = 0.75 + 0.25 * Math.sin(t * 2.4);
+      }
+      bursts = bursts.filter(b => {
+        b.life -= dt;
+        b.sp.position.x += b.vx * dt; b.sp.position.y += b.vy * dt; b.vy -= 2.5 * dt;
+        b.sp.material.opacity = Math.max(0, b.life / 0.7);
+        if (b.life <= 0) { root.remove(b.sp); b.sp.material.dispose(); return false; }
+        return true;
+      });
+    }
+    function kick() {
+      if (!enabled) return;
+      if (reduce) { last = 0; animate(performance.now()); return; }
+      if (!raf && visible && !document.hidden) raf = requestAnimationFrame(animate);
+    }
+    let rebuildTimer = 0;
+    function rebuildSoon() {
+      clearTimeout(rebuildTimer);
+      rebuildTimer = setTimeout(() => requestAnimationFrame(() => { if (enabled) build(); }), 60);
+    }
+    if ('IntersectionObserver' in window) new IntersectionObserver(([en]) => { visible = en.isIntersecting; kick(); }).observe(stage);
+    document.addEventListener('visibilitychange', kick);
+    stage.addEventListener('pointermove', e => {
+      if (e.pointerType !== 'mouse') return;
+      const r = stage.getBoundingClientRect();
+      mouseX = ((e.clientX - r.left) / r.width - 0.5) * -1.2;
+    });
+    if (document.fonts && document.fonts.load) document.fonts.load('400 40px "Song Myung"').then(rebuildSoon, () => {});
+
+    if (location.hash === '#debug3d') window.__k3d = { T, sceneT, camera, renderer, get lanes() { return lanes; }, get beasts() { return beasts; }, get root() { return root; } };
+    return {
+      ok: true,
+      enable(on) {
+        enabled = on;
+        canvas.hidden = !on;
+        if (on) rebuildSoon();
+        else if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      },
+      rebuildSoon,
+      hazard(i, st, mult) {
+        const t = performance.now() / 1000;
+        const o = lanes[i] || beasts[i];
+        if (!o) return;
+        o.state = st; o.t0 = t; o.mult = mult;
+        kick();
+      },
+      resetHazards() { [...Object.values(lanes), ...Object.values(beasts)].forEach(o => { o.state = 'idle'; }); kick(); },
+      setPlayer(xPct) {
+        if (!playerDisc) return;
+        playerDisc.visible = xPct != null;
+        if (xPct != null) playerDisc.position.x = worldAt(xPct / 100, 0, 0)[0];
+        kick();
+      },
+      hitFx(i, r) {
+        if (!root) return;
+        const L = lanes[i], B = beasts[i];
+        let x, y;
+        if (L) { x = L.g.position.x; y = L.yTop * 0.45; } else if (B) { x = B.g.position.x; y = B.baseY; } else return;
+        const color = GAUGE(r.up);
+        for (let n = 0; n < 22; n++) {
+          const sp = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color, transparent: true, opacity: 1, blending: T.AdditiveBlending, depthWrite: false }));
+          const s = 0.16 + Math.random() * 0.2;
+          sp.scale.set(s, s, 1);
+          sp.position.set(x, y, 0.3);
+          const a = Math.random() * Math.PI * 2, v = 1 + Math.random() * 2.2;
+          root.add(sp);
+          bursts.push({ sp, vx: Math.cos(a) * v, vy: Math.sin(a) * v + 1, life: 0.5 + Math.random() * 0.3 });
+        }
+        if (L) { L.state = 'strike'; L.t0 = performance.now() / 1000; }
+        kick();
+      }
+    };
+  }
+
+  if ('ResizeObserver' in window) new ResizeObserver(() => { paint.draw(); if (stage3d) stage3d.rebuildSoon(); }).observe(stage);
+  else window.addEventListener('resize', () => { paint.draw(); if (stage3d) stage3d.rebuildSoon(); });
 
   /* ---------- boot ---------- */
   load();
@@ -2822,6 +3424,14 @@ footer a { color: var(--paper); }
   buildGauges();
   renderSceneChange();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => paint.draw());
+  loadThree().then(ok => {
+    if (ok) stage3d = makeStage3D();
+    syncVisualMode();
+  });
+  $('btn3d').addEventListener('click', () => {
+    try { localStorage.setItem(PREF_3D, want3d() ? 'off' : 'on'); } catch (e) { /* no storage */ }
+    syncVisualMode();
+  });
   // offline + home-screen app on the published site only
   if ('serviceWorker' in navigator && location.protocol === 'https:' && /github\.io$/.test(location.hostname)) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
