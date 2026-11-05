@@ -1,5 +1,5 @@
 // Keeps the page usable offline once opened: serve from cache right away, refresh the cache in the background.
-const CACHE = 'kaling-gauge-v6';
+const CACHE = 'kaling-gauge-v7';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './vendor/three.min.js'];
 
 self.addEventListener('install', event => {

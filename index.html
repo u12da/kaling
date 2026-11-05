@@ -827,6 +827,10 @@ h1 {
 .log .empty { display: block; background: none; padding: 6px 0; color: var(--paper-dim); }
 .notes { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
 .notes li::marker { color: var(--gold); }
+.roomcard { margin: 14px 0 0; max-width: 360px; }
+.roomcard img { display: block; width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); }
+.roomcard figcaption { margin-top: 6px; font-size: 12px; color: var(--paper-dim); }
+.roomcard a, .cardlinks { color: var(--gold); }
 
 /* ---------- practice questions ---------- */
 .quiz { padding-block: 6px 22px; border-top: 1px solid var(--line); }
@@ -1102,6 +1106,10 @@ footer a { color: var(--paper); }
   <div class="panel">
     <h2 id="notesTitle">이 방 메모</h2>
     <ul class="notes" id="notes"></ul>
+    <figure class="roomcard" id="roomCard">
+      <a id="roomCardLink" href="cards/p1-gungi.png" target="_blank" rel="noopener"><img id="roomCardImg" src="cards/p1-gungi.png" alt="이 방 한눈에 카드" loading="lazy" width="1080" height="1542"></a>
+      <figcaption>이 방 한눈에 카드 · 눌러서 크게 보고, 길게 눌러 사진으로 저장하세요. <a href="cards/all.png" target="_blank" rel="noopener">전체 요약 카드</a></figcaption>
+    </figure>
   </div>
 </section>
 
@@ -1122,7 +1130,7 @@ footer a { color: var(--paper); }
 <section class="cheat wrap" aria-labelledby="cheatTitle">
   <div class="cheat-head">
     <h2 id="cheatTitle">한눈에 보기</h2>
-    <p>실 색과 게이지 색이 달라서 헷갈려요. 실은 꽃 색, 게이지는 흉수 색이에요.</p>
+    <p>실 색과 게이지 색이 달라서 헷갈려요. 실은 꽃 색, 게이지는 흉수 색이에요. <a class="cardlinks" id="cardLinks" href="cards/all.png" target="_blank" rel="noopener">한눈에 카드(사진) 보기</a></p>
   </div>
   <div class="cheat-grid">
     <div>
@@ -1940,7 +1948,13 @@ footer a { color: var(--paper); }
     const sc = scene();
     $('notesTitle').textContent = `${sc.phase === 1 ? sc.title : PHASE_LABEL[sc.phase]} 메모`;
     $('notes').innerHTML = sc.notes.map(n => `<li>${esc(n)}</li>`).join('');
+    const src = `cards/${state.scene}.png`;
+    $('roomCardLink').href = src;
+    if ($('roomCardImg').getAttribute('src') !== src) $('roomCardImg').src = src;
   }
+  // the cards live next to the page on the published site; hide them where they are missing
+  $('roomCardImg').addEventListener('error', () => { $('roomCard').hidden = true; $('cardLinks').hidden = true; });
+  $('roomCardImg').addEventListener('load', () => { $('roomCard').hidden = false; $('cardLinks').hidden = false; });
 
   /* ---------- render all ---------- */
   function renderDynamic() {
